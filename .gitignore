@@ -2,3 +2,4 @@ immich-photos.json
 *.photos.json
 Timeline.json
 location-history.json
+manual-places.json

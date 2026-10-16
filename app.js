@@ -257,7 +257,8 @@
     const days = new Map(); // country -> Set(day)
     for (let i = 0; i < n; i++) {
       const k = countryIdx[i], t = data.t[i];
-      if (!ok[i] || airport[i] || k < 0 || !Number.isFinite(t)) continue;
+      // Hand-added places are trusted as-is: never grouped, so never dropped.
+      if (!ok[i] || airport[i] || data.kind[i] === 4 || k < 0 || !Number.isFinite(t)) continue;
       const day = localDay(t);
       const key = k * 1e5 + day;
       let g = groups.get(key);

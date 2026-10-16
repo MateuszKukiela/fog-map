@@ -67,6 +67,13 @@ test('Google Photos sidecar falls back to EXIF location', () => {
   assert.equal(d.t[0], 1600000000000);
 });
 
+test('manual places: date-only means local midday, always kind MANUAL', () => {
+  const d = parse({ source: 'manual', places: [{ name: 'San Marino', lat: 43.9356, lng: 12.4473, date: '2015-07-20' }] });
+  assert.equal(d.format, 'manual');
+  assert.deepEqual([d.lat[0], d.lng[0], d.kind[0]], [43.9356, 12.4473, KIND.MANUAL]);
+  assert.equal(d.t[0], new Date(2015, 6, 20, 12).getTime());
+});
+
 test('unknown JSON yields no points', () => {
   const d = parse({ hello: 'world' });
   assert.equal(d.format, 'unknown');
