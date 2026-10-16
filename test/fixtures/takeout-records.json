@@ -1,0 +1,8 @@
+{
+  "locations": [
+    { "latitudeE7": 407128000, "longitudeE7": -740060000, "accuracy": 10, "timestamp": "2019-03-01T12:00:00.000Z" },
+    { "latitudeE7": 407140000, "longitudeE7": -740040000, "accuracy": 15, "timestampMs": "1551441660000" },
+    { "latitudeE7": 407150000, "longitudeE7": -740030000, "accuracy": 1500, "timestamp": "2019-03-01T12:02:00.000Z" },
+    { "latitudeE7": 0, "longitudeE7": 0, "accuracy": 5, "timestamp": "2019-03-01T12:03:00.000Z" }
+  ]
+}

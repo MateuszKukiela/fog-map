@@ -1,0 +1,32 @@
+[
+  {
+    "endTime": "2024-07-10T10:00:00.000+02:00",
+    "startTime": "2024-07-10T08:00:00.000+02:00",
+    "visit": {
+      "hierarchyLevel": "0",
+      "topCandidate": { "probability": "0.95", "semanticType": "Home", "placeID": "ChIJBBBB", "placeLocation": "geo:41.385100,2.173400" },
+      "probability": "0.9"
+    }
+  },
+  {
+    "endTime": "2024-07-10T10:30:00.000+02:00",
+    "startTime": "2024-07-10T10:00:00.000+02:00",
+    "activity": {
+      "probability": "0.9",
+      "end": "geo:41.403600,2.174400",
+      "topCandidate": { "type": "walking", "probability": "0.8" },
+      "distanceMeters": "2100",
+      "start": "geo:41.385100,2.173400"
+    }
+  },
+  {
+    "endTime": "2024-07-10T12:00:00.000+02:00",
+    "startTime": "2024-07-10T10:00:00.000+02:00",
+    "timelinePath": [
+      { "point": "geo:41.385100,2.173400", "durationMinutesOffsetFromStartTime": "0" },
+      { "point": "geo:41.392000,2.174000", "durationMinutesOffsetFromStartTime": "10" },
+      { "point": "geo:41.403600,2.174400", "durationMinutesOffsetFromStartTime": "25" }
+    ]
+  },
+  { "endTime": "2024-07-10T12:00:00.000+02:00", "startTime": "2024-07-10T10:00:00.000+02:00", "timelineMemory": { "destinations": [] } }
+]

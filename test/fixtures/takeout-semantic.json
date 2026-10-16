@@ -1,0 +1,19 @@
+{
+  "timelineObjects": [
+    {
+      "activitySegment": {
+        "startLocation": { "latitudeE7": 515007000, "longitudeE7": -1246000 },
+        "endLocation": { "latitudeE7": 515033000, "longitudeE7": -1195000 },
+        "duration": { "startTimestamp": "2018-06-01T10:00:00Z", "endTimestamp": "2018-06-01T10:20:00Z" },
+        "activityType": "WALKING",
+        "waypointPath": { "waypoints": [ { "latE7": 515007000, "lngE7": -1246000 }, { "latE7": 515020000, "lngE7": -1220000 }, { "latE7": 515033000, "lngE7": -1195000 } ] }
+      }
+    },
+    {
+      "placeVisit": {
+        "location": { "latitudeE7": 515033000, "longitudeE7": -1195000, "name": "London Eye" },
+        "duration": { "startTimestampMs": "1527848400000", "endTimestampMs": "1527852000000" }
+      }
+    }
+  ]
+}

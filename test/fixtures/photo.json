@@ -1,0 +1,6 @@
+{
+  "title": "IMG_1234.jpg",
+  "photoTakenTime": { "timestamp": "1600000000", "formatted": "13 Sep 2020" },
+  "geoData": { "latitude": 0.0, "longitude": 0.0, "altitude": 0.0 },
+  "geoDataExif": { "latitude": 48.8584, "longitude": 2.2945, "altitude": 35.0 }
+}

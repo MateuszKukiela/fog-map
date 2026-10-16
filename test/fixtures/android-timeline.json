@@ -1,0 +1,43 @@
+{
+  "semanticSegments": [
+    {
+      "startTime": "2025-05-01T08:00:00.000+02:00",
+      "endTime": "2025-05-01T09:00:00.000+02:00",
+      "timelinePath": [
+        { "point": "52.2297000°, 21.0122000°", "time": "2025-05-01T08:00:00.000+02:00" },
+        { "point": "52.2310000°, 21.0150000°", "time": "2025-05-01T08:02:00.000+02:00" },
+        { "point": "52.2330000°, 21.0190000°", "time": "2025-05-01T08:04:00.000+02:00" }
+      ]
+    },
+    {
+      "startTime": "2025-05-01T09:00:00.000+02:00",
+      "endTime": "2025-05-01T11:00:00.000+02:00",
+      "visit": {
+        "hierarchyLevel": 0,
+        "probability": 0.9,
+        "topCandidate": {
+          "placeId": "ChIJAAAA",
+          "semanticType": "WORK",
+          "probability": 0.8,
+          "placeLocation": { "latLng": "52.2330000°, 21.0190000°" }
+        }
+      }
+    },
+    {
+      "startTime": "2025-05-01T11:00:00.000+02:00",
+      "endTime": "2025-05-01T12:30:00.000+02:00",
+      "activity": {
+        "start": { "latLng": "52.2330000°, 21.0190000°" },
+        "end": { "latLng": "50.0647000°, 19.9450000°" },
+        "distanceMeters": 252000,
+        "topCandidate": { "type": "FLYING", "probability": 0.7 }
+      }
+    }
+  ],
+  "rawSignals": [
+    { "position": { "LatLng": "50.0647000°, 19.9450000°", "accuracyMeters": 12, "source": "GPS", "timestamp": "2025-05-01T12:31:00.000+02:00" } },
+    { "position": { "LatLng": "50.0660000°, 19.9470000°", "accuracyMeters": 2000, "source": "CELL", "timestamp": "2025-05-01T12:32:00.000+02:00" } },
+    { "wifiScan": { "deliveryTime": "2025-05-01T12:33:00.000+02:00", "devicesRecords": [] } }
+  ],
+  "userLocationProfile": { "frequentPlaces": [] }
+}
