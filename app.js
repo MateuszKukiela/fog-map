@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  const { parse, merge, buildSegments } = window.FogParser;
+  const { parse, merge, buildSegments, distanceM } = window.FogParser;
   const { prepare, stats, FogLayer } = window.Fog;
 
   const $ = (id) => document.getElementById(id);
@@ -80,6 +80,7 @@
     state.data = data;
     state.segments = buildSegments(data);
     state.countryIdx = classifyCountries(data);
+    state.credible = credibility(data, state.countryIdx);
     const years = new Set();
     for (const t of data.t) if (Number.isFinite(t)) years.add(new Date(t).getFullYear());
     state.allYears = Array.from(years).sort();
@@ -108,12 +109,11 @@
 
   function applyFilter() {
     const { data, segments, years } = state;
-    let include = null;
+    const include = state.credible.slice();
     if (years.size) {
-      include = new Uint8Array(data.lat.length);
       for (let i = 0; i < include.length; i++) {
         const t = data.t[i];
-        include[i] = Number.isFinite(t) && years.has(new Date(t).getFullYear()) ? 1 : 0;
+        if (!(Number.isFinite(t) && years.has(new Date(t).getFullYear()))) include[i] = 0;
       }
     }
     fog.setData(prepare(data, segments, include));
@@ -200,21 +200,78 @@
 
   const HOME_COUNTRY = 'PL';
 
-  // year -> number of days with real presence (same weighting as countries) outside HOME_COUNTRY
+  const DAY_MS = 86400000;
+  const FLIGHT_MPS = 70; // ~250 km/h: faster than any car/train, so the fix was taken from a plane
+  const MIN_STAY_MS = 3600000; // one day in a country counts if presence spans 1 h+ ...
+  const STAY_WINDOW_DAYS = 7; // ... or the country shows up again within a week
+  const MAX_GAP_FILL_DAYS = 5; // days without data between two days abroad still count as abroad
+
+  const localDay = (t) => Math.floor((t - new Date(t).getTimezoneOffset() * 60000) / DAY_MS);
+
+  // 1 = keep, 0 = noise: points taken in flight, and one-off country appearances
+  // (flyovers, photos received from others, wrong timestamps).
+  function credibility(data, countryIdx) {
+    const n = data.lat.length;
+    const ok = new Uint8Array(n).fill(1);
+
+    const path = [];
+    for (let i = 0; i < n; i++) if (data.kind[i] === 0 && Number.isFinite(data.t[i])) path.push(i);
+    path.sort((a, b) => data.t[a] - data.t[b]);
+    const speed = (a, b) => {
+      const dt = (data.t[b] - data.t[a]) / 1000;
+      return dt > 0 ? distanceM(data.lat[a], data.lng[a], data.lat[b], data.lng[b]) / dt : 0;
+    };
+    for (let j = 0; j < path.length; j++) {
+      const prev = j > 0 ? speed(path[j - 1], path[j]) : 0;
+      const next = j < path.length - 1 ? speed(path[j], path[j + 1]) : 0;
+      if (prev > FLIGHT_MPS && next > FLIGHT_MPS) ok[path[j]] = 0;
+    }
+
+    const groups = new Map(); // country*1e5 + day -> {min, max, idx}
+    const days = new Map(); // country -> Set(day)
+    for (let i = 0; i < n; i++) {
+      const k = countryIdx[i], t = data.t[i];
+      if (!ok[i] || k < 0 || !Number.isFinite(t)) continue;
+      const day = localDay(t);
+      const key = k * 1e5 + day;
+      let g = groups.get(key);
+      if (!g) groups.set(key, (g = { min: t, max: t, idx: [] }));
+      g.min = Math.min(g.min, t);
+      g.max = Math.max(g.max, t);
+      g.idx.push(i);
+      if (!days.has(k)) days.set(k, new Set());
+      days.get(k).add(day);
+    }
+    for (const [key, g] of groups) {
+      const k = Math.floor(key / 1e5), day = key % 1e5;
+      if (g.max - g.min >= MIN_STAY_MS || COUNTRIES[k].c === HOME_COUNTRY) continue;
+      let again = false;
+      for (let d = 1; d <= STAY_WINDOW_DAYS && !again; d++) again = days.get(k).has(day - d) || days.get(k).has(day + d);
+      if (!again) for (const i of g.idx) ok[i] = 0;
+    }
+    return ok;
+  }
+
+  // year -> days spent outside HOME_COUNTRY, with short data gaps inside a trip filled in
   function daysAbroadByYear() {
-    const { data, countryIdx } = state;
-    const weight = new Map();
+    const { data, countryIdx, credible } = state;
+    const abroad = new Set(), home = new Set();
     for (let i = 0; i < countryIdx.length; i++) {
       const k = countryIdx[i], t = data.t[i];
-      if (k < 0 || !Number.isFinite(t) || COUNTRIES[k].c === HOME_COUNTRY) continue;
-      const d = new Date(t);
-      const key = d.getFullYear() * 1000 + d.getMonth() * 32 + d.getDate();
-      weight.set(key, (weight.get(key) || 0) + (data.kind[i] === 0 ? 1 : MIN_COUNTRY_WEIGHT));
+      if (!credible[i] || k < 0 || !Number.isFinite(t)) continue;
+      (COUNTRIES[k].c === HOME_COUNTRY ? home : abroad).add(localDay(t));
+    }
+    const sorted = Array.from(abroad).sort((a, b) => a - b);
+    for (let j = 1; j < sorted.length; j++) {
+      const a = sorted[j - 1], b = sorted[j];
+      if (b - a - 1 > MAX_GAP_FILL_DAYS) continue;
+      let wasHome = false;
+      for (let d = a + 1; d < b && !wasHome; d++) wasHome = home.has(d);
+      if (!wasHome) for (let d = a + 1; d < b; d++) abroad.add(d);
     }
     const years = new Map();
-    for (const [key, w] of weight) {
-      if (w < MIN_COUNTRY_WEIGHT) continue;
-      const y = Math.floor(key / 1000);
+    for (const d of abroad) {
+      const y = new Date(d * DAY_MS).getUTCFullYear();
       years.set(y, (years.get(y) || 0) + 1);
     }
     return years;
