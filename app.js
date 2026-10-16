@@ -80,7 +80,8 @@
     state.data = data;
     state.segments = buildSegments(data);
     state.countryIdx = classifyCountries(data);
-    state.credible = credibility(data, state.countryIdx);
+    state.airport = airportMask(data);
+    state.credible = credibility(data, state.countryIdx, state.airport);
     const years = new Set();
     for (const t of data.t) if (Number.isFinite(t)) years.add(new Date(t).getFullYear());
     state.allYears = Array.from(years).sort();
@@ -192,7 +193,7 @@
     const { data, countryIdx } = state;
     const weight = new Map();
     for (let i = 0; i < countryIdx.length; i++) {
-      if ((include && !include[i]) || countryIdx[i] < 0) continue;
+      if ((include && !include[i]) || countryIdx[i] < 0 || state.airport[i]) continue;
       weight.set(countryIdx[i], (weight.get(countryIdx[i]) || 0) + (data.kind[i] === 0 ? 1 : MIN_COUNTRY_WEIGHT));
     }
     return Array.from(weight).filter(([, w]) => w >= MIN_COUNTRY_WEIGHT).sort((a, b) => b[1] - a[1]).map(([k]) => COUNTRIES[k]);
@@ -210,7 +211,32 @@
 
   // 1 = keep, 0 = noise: points taken in flight, and one-off country appearances
   // (flyovers, photos received from others, wrong timestamps).
-  function credibility(data, countryIdx) {
+  // 1 = point is inside an airport (airports.js). Airports still clear fog but never count as a
+  // country or a day abroad, so layovers don't add trips.
+  function airportMask(data) {
+    const key = (cy, cx) => cy * 4000 + cx; // 0.1° buckets
+    const grid = new Map();
+    for (const a of AIRPORTS) {
+      const k = key(Math.floor(a[0] * 10), Math.floor(a[1] * 10));
+      if (!grid.has(k)) grid.set(k, []);
+      grid.get(k).push(a);
+    }
+    const out = new Uint8Array(data.lat.length);
+    for (let i = 0; i < out.length; i++) {
+      const lat = data.lat[i], lng = data.lng[i];
+      const cy = Math.floor(lat * 10), cx = Math.floor(lng * 10);
+      search: for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          for (const a of grid.get(key(cy + dy, cx + dx)) || []) {
+            if (distanceM(lat, lng, a[0], a[1]) <= a[2] * 1000) { out[i] = 1; break search; }
+          }
+        }
+      }
+    }
+    return out;
+  }
+
+  function credibility(data, countryIdx, airport) {
     const n = data.lat.length;
     const ok = new Uint8Array(n).fill(1);
 
@@ -231,7 +257,7 @@
     const days = new Map(); // country -> Set(day)
     for (let i = 0; i < n; i++) {
       const k = countryIdx[i], t = data.t[i];
-      if (!ok[i] || k < 0 || !Number.isFinite(t)) continue;
+      if (!ok[i] || airport[i] || k < 0 || !Number.isFinite(t)) continue;
       const day = localDay(t);
       const key = k * 1e5 + day;
       let g = groups.get(key);
@@ -258,7 +284,7 @@
     const abroad = new Set(), home = new Set();
     for (let i = 0; i < countryIdx.length; i++) {
       const k = countryIdx[i], t = data.t[i];
-      if (!credible[i] || k < 0 || !Number.isFinite(t)) continue;
+      if (!credible[i] || state.airport[i] || k < 0 || !Number.isFinite(t)) continue;
       (COUNTRIES[k].c === HOME_COUNTRY ? home : abroad).add(localDay(t));
     }
     const sorted = Array.from(abroad).sort((a, b) => a - b);
