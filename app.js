@@ -85,6 +85,7 @@
     state.allYears = Array.from(years).sort();
     state.years = new Set();
     renderYears();
+    renderAbroad();
     applyFilter();
     document.body.classList.add('has-data');
     setStatus('');
@@ -195,6 +196,41 @@
       weight.set(countryIdx[i], (weight.get(countryIdx[i]) || 0) + (data.kind[i] === 0 ? 1 : MIN_COUNTRY_WEIGHT));
     }
     return Array.from(weight).filter(([, w]) => w >= MIN_COUNTRY_WEIGHT).sort((a, b) => b[1] - a[1]).map(([k]) => COUNTRIES[k]);
+  }
+
+  const HOME_COUNTRY = 'PL';
+
+  // year -> number of days with real presence (same weighting as countries) outside HOME_COUNTRY
+  function daysAbroadByYear() {
+    const { data, countryIdx } = state;
+    const weight = new Map();
+    for (let i = 0; i < countryIdx.length; i++) {
+      const k = countryIdx[i], t = data.t[i];
+      if (k < 0 || !Number.isFinite(t) || COUNTRIES[k].c === HOME_COUNTRY) continue;
+      const d = new Date(t);
+      const key = d.getFullYear() * 1000 + d.getMonth() * 32 + d.getDate();
+      weight.set(key, (weight.get(key) || 0) + (data.kind[i] === 0 ? 1 : MIN_COUNTRY_WEIGHT));
+    }
+    const years = new Map();
+    for (const [key, w] of weight) {
+      if (w < MIN_COUNTRY_WEIGHT) continue;
+      const y = Math.floor(key / 1000);
+      years.set(y, (years.get(y) || 0) + 1);
+    }
+    return years;
+  }
+
+  function renderAbroad() {
+    const years = daysAbroadByYear();
+    const max = Math.max(1, ...years.values());
+    $('abroad').innerHTML = '';
+    for (const y of state.allYears) {
+      const n = years.get(y) || 0;
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      row.innerHTML = `<span>${y}</span><i style="width:${(n / max) * 100}%"></i><b>${n}</b>`;
+      $('abroad').appendChild(row);
+    }
   }
 
   const flag = (code) => (code ? String.fromCodePoint(...[...code].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65)) : '🏳️');

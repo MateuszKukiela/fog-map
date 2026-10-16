@@ -53,6 +53,11 @@
   .stat.countries b span { color: inherit; font-size: inherit; }
   .flags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; font-size: 20px; line-height: 1; }
   .flags span { cursor: default; color: inherit; font-size: inherit; }
+  .stat.abroad { margin-bottom: 10px; }
+  .bar-row { display: grid; grid-template-columns: 38px 1fr 30px; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px; }
+  .bar-row span { color: var(--muted); }
+  .bar-row i { display: block; height: 8px; min-width: 2px; border-radius: 4px; background: var(--accent); }
+  .bar-row b { font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
   #range { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
   .chip { font: inherit; font-size: 12px; border: 1px solid var(--line); background: transparent; color: var(--text);
@@ -119,6 +124,7 @@
     </div>
     <div class="stat countries"><b>🌍 <span id="stat-countries">0</span></b><span>countries</span>
       <div id="flags" class="flags"></div></div>
+    <div class="stat abroad"><span>days outside Poland</span><div id="abroad"></div></div>
     <div id="range"></div>
     <div class="chips" id="years"></div>
     <label class="slider">Reveal radius <span id="radius-out"></span>
