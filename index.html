@@ -58,6 +58,9 @@
   .flags span { cursor: default; color: inherit; font-size: inherit; }
   .stat.abroad { margin-bottom: 10px; }
   .stat.tcc { margin-bottom: 10px; }
+  .seg { display: flex; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .seg button { flex: 1; font: inherit; font-size: 13px; padding: 6px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+  .seg button.active { background: var(--accent); color: #07112a; font-weight: 600; }
   .stat.cities { margin-bottom: 10px; }
   .stat.cities b span { color: inherit; font-size: inherit; }
   .stat.cities details { margin-top: 4px; border: 0; padding: 0; }
@@ -131,6 +134,7 @@
   </div>
 
   <div class="loaded">
+    <div class="seg" id="view"><button data-view="fog" class="active">Fog</button><button data-view="pins">📍 Pins</button></div>
     <div class="stats">
       <div class="stat"><b id="stat-area">0</b><span>km² explored</span></div>
       <div class="stat"><b id="stat-places">0</b><span>places visited</span></div>

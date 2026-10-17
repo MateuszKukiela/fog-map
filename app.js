@@ -129,7 +129,9 @@
       }
     }
     fog.setData(prepare(data, segments, include));
-    renderStats(stats(data, segments, include), countCountries(include), countTerritories(include), countCities(include));
+    const cities = countCities(include);
+    renderStats(stats(data, segments, include), countCountries(include), countTerritories(include), cities);
+    setPins(cities);
   }
 
   // ---------- countries (Natural Earth borders, countries.js) ----------
@@ -597,5 +599,88 @@
     readFiles(await filesFromDrop(e.dataTransfer));
   });
 
-  map.on('load', restore);
+  // ---------- pins view: red push-pins on visited cities, like a paper map on the wall ----------
+
+  function pinImage() {
+    const s = 2, w = 28, h = 40; // drawn at 2x for sharp pins on retina screens
+    const c = document.createElement('canvas');
+    c.width = w * s;
+    c.height = h * s;
+    const g = c.getContext('2d');
+    g.scale(s, s);
+    // soft shadow cast on the wall, to the lower right of the head
+    g.filter = 'blur(2px)';
+    g.fillStyle = 'rgba(0,0,0,.35)';
+    g.beginPath();
+    g.ellipse(17, 16, 7, 5, 0, 0, 2 * Math.PI);
+    g.fill();
+    g.filter = 'none';
+    // needle, tip at the bottom center = the city
+    g.strokeStyle = '#9a9a9a';
+    g.lineWidth = 1.6;
+    g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(13, 14);
+    g.lineTo(14, h - 1);
+    g.stroke();
+    // glossy red head
+    const grad = g.createRadialGradient(10, 8, 1, 13, 11, 9);
+    grad.addColorStop(0, '#ff9e94');
+    grad.addColorStop(0.35, '#e3201b');
+    grad.addColorStop(1, '#6e0000');
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(13, 11, 8, 0, 2 * Math.PI);
+    g.fill();
+    g.fillStyle = 'rgba(255,255,255,.75)';
+    g.beginPath();
+    g.arc(10, 8, 2.2, 0, 2 * Math.PI);
+    g.fill();
+    return g.getImageData(0, 0, c.width, c.height);
+  }
+
+  function addPinsLayer() {
+    map.addImage('pin', pinImage(), { pixelRatio: 2 });
+    map.addSource('pins', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.addLayer({
+      id: 'pins',
+      type: 'symbol',
+      source: 'pins',
+      layout: {
+        visibility: 'none',
+        'icon-image': 'pin',
+        'icon-anchor': 'bottom',
+        'icon-allow-overlap': true,
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 2, 0.55, 8, 1],
+        'symbol-sort-key': ['-', 0, ['get', 'lat']], // southern pins in front, like on a wall
+      },
+    });
+    map.on('click', 'pins', (e) => {
+      const p = e.features[0].properties;
+      new maplibregl.Popup({ offset: [0, -30] }).setLngLat(e.features[0].geometry.coordinates).setText(`${flag(p.cc)} ${p.name}`).addTo(map);
+    });
+    map.on('mouseenter', 'pins', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'pins', () => { map.getCanvas().style.cursor = ''; });
+  }
+
+  function setPins(cities) {
+    const src = map.getSource('pins');
+    if (!src) return;
+    src.setData({
+      type: 'FeatureCollection',
+      features: cities.map(([name, cc, lat, lng]) => ({ type: 'Feature', properties: { name, cc, lat }, geometry: { type: 'Point', coordinates: [lng, lat] } })),
+    });
+  }
+
+  function setView(view) {
+    fog.canvas.style.display = view === 'pins' ? 'none' : '';
+    map.setLayoutProperty('pins', 'visibility', view === 'pins' ? 'visible' : 'none');
+    for (const b of document.querySelectorAll('#view button')) b.classList.toggle('active', b.dataset.view === view);
+  }
+  for (const b of document.querySelectorAll('#view button')) b.onclick = () => setView(b.dataset.view);
+
+  map.on('load', () => {
+    addPinsLayer();
+    restore();
+  });
 })();
