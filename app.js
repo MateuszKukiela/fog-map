@@ -438,8 +438,16 @@
       if (v && v.parts) {
         state.parts = v.parts.map(({ name, ...data }) => ({ name, data }));
       } else if (v && v.lat && v.lat.length) {
-        // Saved before per-file storage: everything was already merged into one blob.
-        state.parts = [{ name: 'earlier files (merged)', data: { lat: v.lat, lng: v.lng, t: v.t, kind: v.kind } }];
+        // Saved before per-file storage as one merged blob: split it back by point kind,
+        // which maps to the source (GPS/visits = Timeline, 3 = photos, 4 = manual).
+        const groups = [['Timeline (saved earlier)', [0, 1, 2]], ['Photos (saved earlier)', [3]], ['Manual places (saved earlier)', [4]]];
+        for (const [name, kinds] of groups) {
+          const idx = [];
+          for (let i = 0; i < v.kind.length; i++) if (kinds.includes(v.kind[i])) idx.push(i);
+          if (!idx.length) continue;
+          const pick = (arr, Type) => Type.from(idx, (i) => arr[i]);
+          state.parts.push({ name, data: { lat: pick(v.lat, Float64Array), lng: pick(v.lng, Float64Array), t: pick(v.t, Float64Array), kind: pick(v.kind, Uint8Array) } });
+        }
       }
       if (state.parts.length) rebuild(true);
     } catch (err) { console.warn('restore failed', err); }
