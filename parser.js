@@ -91,7 +91,9 @@
 
     if (seg.visit) {
       const cand = seg.visit.topCandidate || {};
+      // Start and end, so the stay's length is known (an overnight hotel vs a fuel stop).
       sink.add(parseCoord(cand.placeLocation), start, KIND.VISIT);
+      if (end > start) sink.add(parseCoord(cand.placeLocation), end, KIND.VISIT);
     }
     if (seg.activity) {
       sink.add(parseCoord(seg.activity.start), start, KIND.ACTIVITY);
@@ -130,7 +132,9 @@
   function readTimelineObject(obj, sink) {
     if (obj.placeVisit) {
       const v = obj.placeVisit;
-      sink.add(parseCoord(v.location), durationStart(v.duration), KIND.VISIT);
+      const vs = durationStart(v.duration), ve = durationEnd(v.duration);
+      sink.add(parseCoord(v.location), vs, KIND.VISIT);
+      if (ve > vs) sink.add(parseCoord(v.location), ve, KIND.VISIT);
     }
     if (obj.activitySegment) {
       const a = obj.activitySegment;

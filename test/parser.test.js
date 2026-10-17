@@ -29,8 +29,9 @@ test('parseTime handles ISO, ms and seconds', () => {
 test('android Timeline.json: paths, visits, activities, raw signals', () => {
   const d = parse(fixture('android-timeline.json'));
   assert.equal(d.format, 'android-timeline');
-  // 3 path + 1 visit + 2 activity + 1 raw (the 2000 m CELL fix is dropped)
-  assert.deepEqual(kinds(d), [0, 0, 0, 1, 2, 2, 0]);
+  // 3 path + visit start/end + 2 activity + 1 raw (the 2000 m CELL fix is dropped)
+  assert.deepEqual(kinds(d), [0, 0, 0, 1, 1, 2, 2, 0]);
+  assert.equal(d.t[4] - d.t[3], 2 * 3600000);
   assert.equal(d.lat[3], 52.233);
   assert.equal(d.t[0], Date.parse('2025-05-01T08:00:00.000+02:00'));
 });
@@ -38,10 +39,10 @@ test('android Timeline.json: paths, visits, activities, raw signals', () => {
 test('iPhone export: geo: strings and minute offsets', () => {
   const d = parse(fixture('iphone-timeline.json'));
   assert.equal(d.format, 'iphone-timeline');
-  assert.deepEqual(kinds(d), [1, 2, 2, 0, 0, 0]);
+  assert.deepEqual(kinds(d), [1, 1, 2, 2, 0, 0, 0]);
   const start = Date.parse('2024-07-10T10:00:00.000+02:00');
-  assert.equal(d.t[4], start + 10 * 60000);
-  assert.equal(d.lng[5], 2.1744);
+  assert.equal(d.t[5], start + 10 * 60000);
+  assert.equal(d.lng[6], 2.1744);
 });
 
 test('legacy Records.json: drops inaccurate and 0,0 fixes', () => {
@@ -54,7 +55,7 @@ test('legacy Records.json: drops inaccurate and 0,0 fixes', () => {
 test('legacy Semantic Location History: waypoints get interpolated times', () => {
   const d = parse(fixture('takeout-semantic.json'));
   assert.equal(d.format, 'takeout-semantic');
-  assert.deepEqual(kinds(d), [2, 2, 0, 0, 0, 1]);
+  assert.deepEqual(kinds(d), [2, 2, 0, 0, 0, 1, 1]);
   const start = Date.parse('2018-06-01T10:00:00Z');
   assert.equal(d.t[3], start + 10 * 60000);
   assert.equal(d.t[5], 1527848400000);

@@ -605,6 +605,27 @@
 
   const PLACE_CELL_DEG = 0.05; // ~5 km
   const PLACE_MERGE_M = 15000; // one pin per ~15 km area
+  const STOP_MS = 45 * 60000; // a yellow pin needs a real stop, not a drive-through ...
+  const PHOTO_STOP_MS = 15 * 60000; // ... or a shorter stop with a few photos (a viewpoint)
+  const STOP_GAP_MS = 2 * 3600000; // fixes further apart than this are separate passes
+
+  // Longest stay in a cell: a run of time-sorted fixes with small gaps. Two visit fixes in a row
+  // (start/end of one Timeline visit) always continue the run, so a night in a hotel counts.
+  function isStop(fixes) {
+    if (fixes.manual) return true;
+    fixes.sort((a, b) => a[0] - b[0]);
+    let start = 0, photos = 0;
+    for (let j = 0; j < fixes.length; j++) {
+      if (j > 0 && fixes[j][0] - fixes[j - 1][0] > STOP_GAP_MS && !(fixes[j][1] === 1 && fixes[j - 1][1] === 1)) {
+        start = j;
+        photos = 0;
+      }
+      if (fixes[j][1] === 3) photos++;
+      const span = fixes[j][0] - fixes[start][0];
+      if (span >= STOP_MS || (span >= PHOTO_STOP_MS && photos >= 3)) return true;
+    }
+    return false;
+  }
 
   let townGrid = null;
   function nearestTown(lat, lng, maxM) {
@@ -637,16 +658,19 @@
       if ((include && !include[i]) || airport[i] || city[i] >= 0) continue;
       const key = Math.floor(data.lat[i] / PLACE_CELL_DEG) * 100000 + Math.floor(data.lng[i] / PLACE_CELL_DEG);
       const w = data.kind[i] === 0 ? 1 : MIN_COUNTRY_WEIGHT;
-      const c = cells.get(key) || { w: 0, lat: 0, lng: 0 };
+      const c = cells.get(key) || { w: 0, lat: 0, lng: 0, fixes: [] };
       c.w += w;
       c.lat += data.lat[i] * w;
       c.lng += data.lng[i] * w;
+      if (data.kind[i] === 4) c.fixes.manual = true;
+      else if (Number.isFinite(data.t[i])) c.fixes.push([data.t[i], data.kind[i]]);
       cells.set(key, c);
     }
     const taken = countCities(include).map((c) => [c[2], c[3]]);
     const places = [];
     for (const c of [...cells.values()].sort((a, b) => b.w - a.w)) {
       if (c.w < MIN_COUNTRY_WEIGHT) break;
+      if (!isStop(c.fixes)) continue;
       const lat = c.lat / c.w, lng = c.lng / c.w;
       if (taken.some(([a, b]) => distanceM(lat, lng, a, b) < PLACE_MERGE_M)) continue;
       taken.push([lat, lng]);
