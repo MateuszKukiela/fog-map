@@ -9,9 +9,32 @@ function toPhoto(lat, lng, time, exif = {}) {
   return { lat, lng, time: time || null, city: exif.city || null, country: exif.country || null };
 }
 
+export const normalizeUrl = (url) => url.trim().replace(/\/+$/, '').replace(/\/api$/, '');
+
+// Checks URL + key with a cheap call. Resolves to { user }, rejects with a message fit for the UI.
+export async function checkImmich({ url, apiKey }) {
+  const base = normalizeUrl(url);
+  const get = (path) => fetch(base + path, {
+    headers: { 'x-api-key': apiKey, accept: 'application/json' },
+    signal: AbortSignal.timeout(10000),
+  });
+  let res;
+  try {
+    res = await get('/api/users/me');
+    if (res.status === 404) res = await get('/api/user/me'); // older Immich
+  } catch (err) {
+    throw new Error(`Can't reach ${base} (${err.cause?.code || err.name}). Check the URL and that this server can access it.`);
+  }
+  if (res.status === 401 || res.status === 403) throw new Error('Immich rejected the API key.');
+  if (!res.ok) throw new Error(`${base} answered HTTP ${res.status}. Is this your Immich address?`);
+  const me = await res.json().catch(() => null);
+  if (!me || typeof me !== 'object') throw new Error(`${base} doesn't look like an Immich server.`);
+  return { user: me.name || me.email || 'unknown user' };
+}
+
 // Returns { source: 'immich', exportedAt, photos } (the format parser.js reads).
 export async function fetchImmichPhotos({ url, apiKey, onProgress = () => {} }) {
-  const baseUrl = url.replace(/\/+$/, '').replace(/\/api$/, '');
+  const baseUrl = normalizeUrl(url);
 
   async function api(method, path, body) {
     const res = await fetch(baseUrl + '/api' + path, {

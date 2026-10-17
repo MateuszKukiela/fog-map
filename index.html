@@ -93,6 +93,42 @@
   body.has-data .loaded { display: block; }
   body.has-data .empty { display: none; }
 
+  .head-actions { display: flex; align-items: center; gap: 2px; }
+  .head-actions .icon-btn { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; }
+  .head-actions .icon-btn:hover { color: var(--text); background: rgba(255,255,255,.06); }
+  .icon-btn[hidden] { display: none !important; }
+
+  dialog#settings { width: min(460px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line); border-radius: 14px;
+    background: #10152a; color: var(--text); box-shadow: 0 24px 80px rgba(0,0,0,.6); }
+  dialog#settings::backdrop { background: rgba(4, 6, 14, .6); backdrop-filter: blur(3px); }
+  .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+  .dlg-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .dlg-section { padding: 18px 20px 20px; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .section-head h3 { margin: 0; font-size: 14px; font-weight: 600; }
+  .conn { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+  .conn::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #59627d; }
+  .conn.on { color: #8be3b1; }
+  .conn.on::before { background: #3ecf7f; box-shadow: 0 0 0 3px rgba(62,207,127,.18); }
+  .hint { color: var(--muted); font-size: 13px; margin: 6px 0 16px; }
+  .field { display: block; margin-bottom: 14px; }
+  .field > span { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+  .field input { width: 100%; font: inherit; color: var(--text); background: #0a0e1d; border: 1px solid rgba(255,255,255,.14);
+    border-radius: 8px; padding: 9px 11px; outline: none; transition: border-color .15s, box-shadow .15s; }
+  .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,196,255,.2); }
+  .field input[aria-invalid="true"] { border-color: var(--error); }
+  .field small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 6px; line-height: 1.45; }
+  .msg { font-size: 13px; min-height: 1.4em; margin: 2px 0 14px; color: var(--muted); }
+  .msg.ok { color: #8be3b1; }
+  .msg.err { color: var(--error); }
+  .dlg-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .dlg-actions .spacer { flex: 1; }
+  .dlg-actions button.primary { width: auto; padding: 8px 16px; }
+  .dlg-actions button.ghost { padding: 8px 12px; }
+  .dlg-actions button:disabled { opacity: .55; cursor: progress; }
+  .link-danger { font: inherit; font-size: 13px; background: none; border: 0; color: var(--error); cursor: pointer; padding: 8px 4px; }
+  .link-danger:hover { text-decoration: underline; }
+
   .dropzone { position: fixed; inset: 0; z-index: 10; display: none; place-items: center;
     background: rgba(8, 11, 24, .7); border: 3px dashed var(--accent); font-size: 22px; }
   body.dragging .dropzone { display: grid; }
@@ -108,7 +144,12 @@
 <aside class="panel">
   <div class="head">
     <h1>Fog Map</h1>
-    <button class="icon-btn" id="collapse" title="Collapse">▾</button>
+    <div class="head-actions">
+      <button class="icon-btn" id="open-settings" title="Settings" aria-label="Settings" hidden>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+      <button class="icon-btn" id="collapse" title="Collapse" aria-label="Collapse panel">▾</button>
+    </div>
   </div>
   <p class="sub">Everywhere you've been, from your Google Timeline and photos.</p>
 
@@ -127,7 +168,7 @@
       <h3>iPhone</h3>
       <ol><li>Google Maps → profile picture → Your Timeline</li><li>⋯ → Location &amp; privacy settings → Export Timeline data</li></ol>
       <h3>Immich photos</h3>
-      <ol><li>Immich → Account Settings → API Keys</li><li>Self-hosted (Docker): set <code>IMMICH_URL</code> and <code>IMMICH_API_KEY</code>, photos load automatically</li><li>Or export a file: <code>node immich-export.mjs</code></li></ol>
+      <ol><li>Self-hosted: ⚙ Settings → Immich, photos load automatically</li><li>Opened as a file: <code>node immich-export.mjs</code>, then drop <code>immich-photos.json</code></li></ol>
       <h3>Old Google Takeout</h3>
       <ol><li>Drop <code>Records.json</code> or the whole <code>Semantic Location History</code> folder</li></ol>
     </details>
@@ -168,6 +209,40 @@
 </aside>
 
 <div class="dropzone">Drop to lift the fog</div>
+
+<dialog id="settings" aria-labelledby="settings-title">
+  <form id="immich-form" novalidate>
+    <header class="dlg-head">
+      <h2 id="settings-title">Settings</h2>
+      <button type="button" class="icon-btn" id="settings-close" aria-label="Close">✕</button>
+    </header>
+    <section class="dlg-section">
+      <div class="section-head">
+        <h3>Immich</h3>
+        <span id="immich-state" class="conn">Not connected</span>
+      </div>
+      <p class="hint">Geotagged photos from your Immich library appear on the map automatically.</p>
+      <label class="field">
+        <span>Server URL</span>
+        <input type="url" id="immich-url" placeholder="https://photos.example.com" autocomplete="url" spellcheck="false" required autofocus>
+      </label>
+      <label class="field">
+        <span>API key</span>
+        <input type="password" id="immich-key" placeholder="Paste your API key" autocomplete="off" spellcheck="false">
+        <small>Immich → Account Settings → API Keys → New API Key. Read access to assets is enough.
+          The key is stored on this server only and is never sent back to the browser.</small>
+      </label>
+      <div id="immich-msg" class="msg" role="status" aria-live="polite"></div>
+      <div class="dlg-actions">
+        <button type="button" class="link-danger" id="immich-disconnect" hidden>Disconnect</button>
+        <button type="button" class="ghost" id="immich-sync" hidden>Sync now</button>
+        <span class="spacer"></span>
+        <button type="button" class="ghost" id="immich-test">Test connection</button>
+        <button type="submit" class="primary" id="immich-save">Save</button>
+      </div>
+    </section>
+  </form>
+</dialog>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="parser.js"></script>

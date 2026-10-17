@@ -760,11 +760,11 @@
   // Self-hosted (server.mjs): photo locations straight from Immich on every visit.
   // Opened as a local file or on a plain static host, the endpoint isn't there and this does nothing.
   const IMMICH_PART = 'Immich (live)';
-  async function loadImmich() {
+  async function loadImmich(refresh) {
     if (location.protocol === 'file:') return;
     try {
       setStatus('Loading photos from Immich…');
-      const res = await fetch('api/immich');
+      const res = await fetch(refresh ? 'api/immich?refresh=1' : 'api/immich');
       if (!res.ok) {
         const err = res.status === 404 ? '' : `Immich: ${(await res.json().catch(() => ({}))).error || 'HTTP ' + res.status}`;
         setStatus(err, !!err);
@@ -776,12 +776,111 @@
       state.parts.push({ name: IMMICH_PART, data: d });
       setStatus('');
       rebuild(first);
+      return d.lat.length;
     } catch (err) {
       setStatus('');
       console.warn('Immich', err);
     }
   }
 
+  // ---------- settings dialog (only when served by server.mjs) ----------
+
+  const dialog = $('settings');
+  let immichCfg = null;
+
+  async function initSettings() {
+    if (location.protocol === 'file:') return;
+    try {
+      const res = await fetch('api/settings');
+      if (!res.ok) return;
+      immichCfg = (await res.json()).immich;
+    } catch {
+      return;
+    }
+    $('open-settings').hidden = false;
+    renderImmich();
+    if (location.hash === '#settings') $('open-settings').click(); // direct link to settings
+  }
+
+  function renderImmich() {
+    const c = immichCfg;
+    const el = $('immich-state');
+    el.textContent = c.hasKey ? `Connected · ${new URL(c.url).host}` + (c.source === 'env' ? ' (from environment)' : '') : 'Not connected';
+    el.classList.toggle('on', c.hasKey);
+    $('immich-url').value = c.url;
+    $('immich-key').value = '';
+    $('immich-key').placeholder = c.hasKey ? 'Saved · leave empty to keep it' : 'Paste your API key';
+    $('immich-disconnect').hidden = !c.hasKey;
+    $('immich-sync').hidden = !c.hasKey;
+  }
+
+  function immichMsg(text, kind) {
+    const el = $('immich-msg');
+    el.textContent = text;
+    el.className = 'msg' + (kind ? ' ' + kind : '');
+  }
+
+  async function immichBusy(label, fn) {
+    const buttons = dialog.querySelectorAll('.dlg-actions button');
+    buttons.forEach((b) => (b.disabled = true));
+    immichMsg(label);
+    try {
+      await fn();
+    } catch {
+      immichMsg('Could not reach the fog map server.', 'err');
+    } finally {
+      buttons.forEach((b) => (b.disabled = false));
+    }
+  }
+
+  async function settingsCall(method, body) {
+    const res = await fetch('api/settings/immich', { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
+    return [res.ok, await res.json().catch(() => ({}))];
+  }
+
+  function submitImmich(test) {
+    const urlInput = $('immich-url');
+    const url = urlInput.value.trim();
+    urlInput.setAttribute('aria-invalid', String(!url));
+    if (!url) return immichMsg('Enter your Immich server URL.', 'err');
+    return immichBusy(test ? 'Testing connection…' : 'Checking and saving…', async () => {
+      const [ok, body] = await settingsCall('POST', { url, apiKey: $('immich-key').value, test });
+      if (!ok) return immichMsg(body.error || 'Something went wrong.', 'err');
+      if (test) return immichMsg(`Connection works. Signed in as ${body.user}.`, 'ok');
+      immichCfg = body.immich;
+      renderImmich();
+      immichMsg(`Saved. Signed in as ${body.user}. Loading photos, the first sync can take a minute…`, 'ok');
+      const n = await loadImmich();
+      immichMsg(n != null ? `Saved. ${n.toLocaleString()} geotagged photos loaded.` : 'Saved, but loading photos failed. See the message in the panel.', n != null ? 'ok' : 'err');
+    });
+  }
+
+  $('open-settings').onclick = () => {
+    immichMsg('');
+    renderImmich();
+    dialog.showModal();
+  };
+  $('settings-close').onclick = () => dialog.close();
+  $('immich-form').onsubmit = (e) => {
+    e.preventDefault();
+    submitImmich(false);
+  };
+  $('immich-test').onclick = () => submitImmich(true);
+  $('immich-sync').onclick = () => immichBusy('Syncing photos from Immich…', async () => {
+    const n = await loadImmich(true);
+    immichMsg(n != null ? `Synced. ${n.toLocaleString()} geotagged photos.` : 'Sync failed. See the message in the panel.', n != null ? 'ok' : 'err');
+  });
+  $('immich-disconnect').onclick = () => immichBusy('Disconnecting…', async () => {
+    const [ok, body] = await settingsCall('DELETE');
+    if (!ok) return immichMsg(body.error || 'Something went wrong.', 'err');
+    immichCfg = body.immich;
+    renderImmich();
+    state.parts = state.parts.filter((p) => p.name !== IMMICH_PART);
+    rebuild(false);
+    immichMsg('Disconnected. The saved API key was deleted from the server.', 'ok');
+  });
+
+  initSettings();
   map.on('load', async () => {
     addPinsLayer();
     await restore();

@@ -4,9 +4,10 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"
+    volumes:
+      - ./data:/data   # Immich settings saved from the page (⚙ Settings)
     environment:
-      IMMICH_URL: https://photos.example.com
-      IMMICH_API_KEY: ${IMMICH_API_KEY}   # put it in a .env file next to this one
-      # Strongly recommended if anyone else can reach the page: it shows where your photos were taken.
+      # Strongly recommended if anyone else can reach the page: it shows where your photos were
+      # taken and lets visitors change the Immich connection.
       # BASIC_AUTH: me:change-this-password
       # IMMICH_REFRESH_HOURS: 6

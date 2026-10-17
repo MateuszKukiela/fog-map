@@ -5,20 +5,21 @@ Fog-of-war and push-pin views, countries, Century Club territories, cities and d
 
 ## Self-host (Docker)
 
-1. In Immich: Account Settings → API Keys → create a key (asset read is enough).
-2. Put it in `.env` next to `docker-compose.yml`:
-   ```
-   IMMICH_API_KEY=your-key
-   ```
-3. Set `IMMICH_URL` in `docker-compose.yml`, then:
-   ```
-   docker compose up -d --build
-   ```
-4. Open http://localhost:8080. Photos load from Immich automatically (cached 6 h).
-   Drop `Timeline.json` and `manual-places.json` on the page; they're kept in that browser.
+```
+docker compose up -d --build
+```
 
-**Set `BASIC_AUTH: user:password` if anyone else can reach the page** — it shows where every photo was taken.
-The API key stays on the server and is never sent to the browser.
+Open http://localhost:8080, click ⚙ and enter your Immich URL and API key
+(Immich → Account Settings → API Keys → New API Key; read access to assets is enough).
+**Test connection** checks it, **Save** stores it and photos load automatically (cached 6 h, **Sync now** refreshes).
+
+- The key is saved in `./data/settings.json` (mode 600) on the server and never sent back to the browser.
+  Changing the server URL requires entering the key again, so it can't be redirected elsewhere.
+- Drop `Timeline.json` and `manual-places.json` on the page; they're kept in that browser.
+- `IMMICH_URL` / `IMMICH_API_KEY` env vars still work as starting values; settings saved in the page win.
+
+**Set `BASIC_AUTH: user:password` if anyone else can reach the page.** Without it, anyone who can open it
+sees where every photo was taken and can change the Immich connection.
 
 ## Without a server
 
