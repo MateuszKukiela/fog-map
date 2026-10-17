@@ -92,6 +92,7 @@
     state.airport = airportMask(data);
     state.credible = credibility(data, state.countryIdx, state.airport);
     state.territory = classifyTerritories(data, state.countryIdx);
+    state.city = classifyCities(data);
     const years = new Set();
     for (const t of data.t) if (Number.isFinite(t)) years.add(new Date(t).getFullYear());
     state.allYears = Array.from(years).sort();
@@ -128,7 +129,7 @@
       }
     }
     fog.setData(prepare(data, segments, include));
-    renderStats(stats(data, segments, include), countCountries(include), countTerritories(include));
+    renderStats(stats(data, segments, include), countCountries(include), countTerritories(include), countCities(include));
   }
 
   // ---------- countries (Natural Earth borders, countries.js) ----------
@@ -396,12 +397,63 @@
     return Array.from(weight).filter(([, w]) => w >= MIN_COUNTRY_WEIGHT).sort((a, b) => b[1] - a[1]).map(([t]) => state.territoryNames[t]);
   }
 
+  // ---------- cities (cities.js, 100k+ people) ----------
+
+  const CITY_BUCKET_DEG = 0.5;
+  // Visit radius grows with size: 3 km for 100k, ~9.5 km for 1M, capped at 20 km.
+  const cityRadiusM = (pop) => Math.min(20000, 3000 * Math.sqrt(pop / 1e5));
+
+  // Per point: index into CITIES of the largest city whose radius covers it, -1 for none.
+  function classifyCities(data) {
+    const bucket = (lat, lng) => Math.floor(lat / CITY_BUCKET_DEG) * 1000 + Math.floor(lng / CITY_BUCKET_DEG);
+    const grid = new Map();
+    CITIES.forEach((c, idx) => {
+      const k = bucket(c[2], c[3]);
+      if (!grid.has(k)) grid.set(k, []);
+      grid.get(k).push(idx);
+    });
+    const cache = new Map();
+    const out = new Int16Array(data.lat.length);
+    for (let i = 0; i < out.length; i++) {
+      const lat = data.lat[i], lng = data.lng[i];
+      const cell = Math.floor(lng / COUNTRY_CELL_DEG) * 100000 + Math.floor(lat / COUNTRY_CELL_DEG);
+      let best = cache.get(cell);
+      if (best === undefined) {
+        best = -1;
+        const by = Math.floor(lat / CITY_BUCKET_DEG), bx = Math.floor(lng / CITY_BUCKET_DEG);
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            for (const idx of grid.get((by + dy) * 1000 + bx + dx) || []) {
+              if (best >= 0 && idx > best) continue; // CITIES is largest-first
+              const c = CITIES[idx];
+              if (distanceM(lat, lng, c[2], c[3]) <= cityRadiusM(c[4])) best = idx;
+            }
+          }
+        }
+        cache.set(cell, best);
+      }
+      out[i] = best;
+    }
+    return out;
+  }
+
+  // Same noise rules as countries; airports don't count as visiting the city.
+  function countCities(include) {
+    const { data, city } = state;
+    const weight = new Map();
+    for (let i = 0; i < city.length; i++) {
+      if ((include && !include[i]) || city[i] < 0 || state.airport[i]) continue;
+      weight.set(city[i], (weight.get(city[i]) || 0) + (data.kind[i] === 0 ? 1 : MIN_COUNTRY_WEIGHT));
+    }
+    return Array.from(weight).filter(([, w]) => w >= MIN_COUNTRY_WEIGHT).map(([c]) => c).sort((a, b) => a - b).map((c) => CITIES[c]);
+  }
+
   const flag = (code) => (code ? String.fromCodePoint(...[...code].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65)) : '🏳️');
 
   const fmt = (n) => Math.round(n).toLocaleString();
   const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 
-  function renderStats(s, countries, territories) {
+  function renderStats(s, countries, territories, cities) {
     $('stat-area').textContent = s.areaKm2 < 10 ? s.areaKm2.toFixed(1) : fmt(s.areaKm2);
     $('stat-places').textContent = fmt(s.places);
     $('stat-days').textContent = fmt(s.days);
@@ -414,6 +466,8 @@
       span.title = c.n;
       $('flags').appendChild(span);
     }
+    $('stat-cities').textContent = cities.length;
+    $('city-list').textContent = cities.map((c) => `${flag(c[1])} ${c[0]}`).join(' · ');
     $('stat-tcc').textContent = `${territories.length} / ${TCC_TOTAL}`;
     $('tcc-bar').style.width = Math.min(100, territories.length) + '%';
     $('tcc-list').textContent = territories.join(' · ');

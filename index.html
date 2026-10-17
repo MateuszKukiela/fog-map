@@ -58,6 +58,10 @@
   .flags span { cursor: default; color: inherit; font-size: inherit; }
   .stat.abroad { margin-bottom: 10px; }
   .stat.tcc { margin-bottom: 10px; }
+  .stat.cities { margin-bottom: 10px; }
+  .stat.cities b span { color: inherit; font-size: inherit; }
+  .stat.cities details { margin-top: 4px; border: 0; padding: 0; }
+  #city-list { font-size: 11px; color: var(--muted); line-height: 1.6; margin-top: 4px; }
   .stat.tcc b span { color: inherit; font-size: inherit; }
   .tcc-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); margin: 6px 0; overflow: hidden; }
   .tcc-track i { display: block; height: 100%; background: var(--accent); }
@@ -135,6 +139,8 @@
     </div>
     <div class="stat countries"><b>🌍 <span id="stat-countries">0</span></b><span>countries</span>
       <div id="flags" class="flags"></div></div>
+    <div class="stat cities"><b>🏙️ <span id="stat-cities">0</span></b><span>cities with 100k+ people</span>
+      <details><summary>Show cities</summary><div id="city-list"></div></details></div>
     <div class="stat tcc"><b>🏆 <span id="stat-tcc">0</span></b><span>Travelers' Century Club territories (100 to join)</span>
       <div class="tcc-track"><i id="tcc-bar"></i></div>
       <div id="tcc-list"></div></div>
@@ -165,6 +171,7 @@
 <script src="countries.js"></script>
 <script src="airports.js"></script>
 <script src="tcc.js"></script>
+<script src="cities.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
