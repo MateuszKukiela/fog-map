@@ -206,6 +206,8 @@
   const MIN_STAY_MS = 3600000; // one day in a country counts if presence spans 1 h+ ...
   const STAY_WINDOW_DAYS = 7; // ... or the country shows up again within a week
   const MAX_GAP_FILL_DAYS = 5; // days without data between two days abroad still count as abroad
+  const TELEPORT_MPS = 300; // ~1080 km/h, faster than any airliner
+  const CLUSTER_M = 50000;
 
   const localDay = (t) => Math.floor((t - new Date(t).getTimezoneOffset() * 60000) / DAY_MS);
 
@@ -240,17 +242,42 @@
     const n = data.lat.length;
     const ok = new Uint8Array(n).fill(1);
 
-    const path = [];
-    for (let i = 0; i < n; i++) if (data.kind[i] === 0 && Number.isFinite(data.t[i])) path.push(i);
-    path.sort((a, b) => data.t[a] - data.t[b]);
     const speed = (a, b) => {
       const dt = (data.t[b] - data.t[a]) / 1000;
       return dt > 0 ? distanceM(data.lat[a], data.lng[a], data.lat[b], data.lng[b]) / dt : 0;
     };
-    for (let j = 0; j < path.length; j++) {
-      const prev = j > 0 ? speed(path[j - 1], path[j]) : 0;
-      const next = j < path.length - 1 ? speed(path[j], path[j + 1]) : 0;
-      if (prev > FLIGHT_MPS && next > FLIGHT_MPS) ok[path[j]] = 0;
+    const dist = (a, b) => distanceM(data.lat[a], data.lng[a], data.lat[b], data.lng[b]);
+
+    // All timed fixes from every source (manual places are trusted, skipped).
+    let timed = [];
+    for (let i = 0; i < n; i++) if (data.kind[i] !== 4 && Number.isFinite(data.t[i])) timed.push(i);
+    timed.sort((a, b) => data.t[a] - data.t[b]);
+
+    // In flight: arrived and left at plane speed (GPS fixes and window photos alike).
+    for (let j = 1; j < timed.length - 1; j++) {
+      if (speed(timed[j - 1], timed[j]) > FLIGHT_MPS && speed(timed[j], timed[j + 1]) > FLIGHT_MPS) ok[timed[j]] = 0;
+    }
+    timed = timed.filter((i) => ok[i]);
+
+    // Teleports: a small burst of fixes far away, with the same place before and after,
+    // reached or left faster than any plane (Wi-Fi geolocation glitches, e.g. a night "in
+    // Manchester" while asleep in Poland). Fixes are grouped into 50 km clusters in time order;
+    // only the smaller side counts as the glitch, so a real trip isn't dropped because of
+    // bogus jumps back home.
+    const clusters = [];
+    for (let j = 0; j < timed.length; j++) {
+      const c = clusters[clusters.length - 1];
+      if (c && dist(timed[c[0]], timed[j]) <= CLUSTER_M) c[1] = j;
+      else clusters.push([j, j]);
+    }
+    const size = (c) => clusters[c][1] - clusters[c][0] + 1;
+    for (let c = 1; c < clusters.length - 1; c++) {
+      const prev = timed[clusters[c - 1][1]], first = timed[clusters[c][0]];
+      const last = timed[clusters[c][1]], next = timed[clusters[c + 1][0]];
+      if (dist(prev, next) > CLUSTER_M) continue;
+      if (size(c) >= Math.min(size(c - 1), size(c + 1))) continue;
+      if (Math.max(speed(prev, first), speed(last, next)) <= TELEPORT_MPS) continue;
+      for (let j = clusters[c][0]; j <= clusters[c][1]; j++) ok[timed[j]] = 0;
     }
 
     const groups = new Map(); // country*1e5 + day -> {min, max, idx}
