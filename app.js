@@ -757,8 +757,34 @@
   }
   for (const b of document.querySelectorAll('#view button')) b.onclick = () => setView(b.dataset.view);
 
-  map.on('load', () => {
+  // Self-hosted (server.mjs): photo locations straight from Immich on every visit.
+  // Opened as a local file or on a plain static host, the endpoint isn't there and this does nothing.
+  const IMMICH_PART = 'Immich (live)';
+  async function loadImmich() {
+    if (location.protocol === 'file:') return;
+    try {
+      setStatus('Loading photos from Immich…');
+      const res = await fetch('api/immich');
+      if (!res.ok) {
+        const err = res.status === 404 ? '' : `Immich: ${(await res.json().catch(() => ({}))).error || 'HTTP ' + res.status}`;
+        setStatus(err, !!err);
+        return;
+      }
+      const d = parse(await res.json());
+      const first = !state.parts.length;
+      state.parts = state.parts.filter((p) => p.name !== IMMICH_PART);
+      state.parts.push({ name: IMMICH_PART, data: d });
+      setStatus('');
+      rebuild(first);
+    } catch (err) {
+      setStatus('');
+      console.warn('Immich', err);
+    }
+  }
+
+  map.on('load', async () => {
     addPinsLayer();
-    restore();
+    await restore();
+    loadImmich();
   });
 })();
