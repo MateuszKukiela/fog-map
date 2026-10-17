@@ -13,3 +13,4 @@
 !immich.mjs
 !server.mjs
 !vendor/maplibre-gl/
+!docker-entrypoint.sh

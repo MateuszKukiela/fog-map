@@ -122,7 +122,10 @@ Image tags: `latest` and `1`, `1.0`, `1.0.0` for releases, `edge` for the newest
   Changing the server URL requires entering the key again, so a saved key can't be redirected to another host.
 - Settings can only be changed with JSON requests, which other websites can't forge from your browser.
 - The server serves an explicit allowlist of files; nothing else in the image or volume is reachable.
-- The container runs as an unprivileged user and has a health check at `/healthz`.
+- The server runs as an unprivileged user (the entrypoint only uses root to make `/data` writable,
+  so bind mounts work without a manual `chown`) and has a health check at `/healthz`.
+- Behind a forward-auth proxy (tinyauth, Authelia, Authentik…) you don't need `BASIC_AUTH`.
+  Leave `/healthz` reachable for health checks if your proxy monitors the app.
 - When put behind a reverse proxy, terminate HTTPS there.
 
 Found a vulnerability? See [SECURITY.md](SECURITY.md).
