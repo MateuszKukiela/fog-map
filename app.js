@@ -4,7 +4,7 @@
   const { prepare, stats, FogLayer } = window.Fog;
 
   const $ = (id) => document.getElementById(id);
-  const state = { data: null, segments: null, files: [], years: new Set() };
+  const state = { data: null, segments: null, parts: [], years: new Set() }; // parts: [{name, data}], one per file
 
   const map = new maplibregl.Map({
     container: 'map',
@@ -29,8 +29,7 @@
   }
 
   async function readFiles(files) {
-    const parts = [];
-    const names = [];
+    let added = 0;
     for (const f of files) {
       if (!/\.json$/i.test(f.name)) continue;
       setStatus(`Reading ${f.name} (${(f.size / 1e6).toFixed(1)} MB)…`);
@@ -38,21 +37,31 @@
       try {
         const d = parse(JSON.parse(await f.text()));
         if (d.lat.length) {
-          parts.push(d);
-          names.push(`${f.name} · ${d.lat.length.toLocaleString()} pts`);
+          // Same file name again = newer version of that file, replace it.
+          state.parts = state.parts.filter((p) => p.name !== f.name);
+          state.parts.push({ name: f.name, data: d });
+          added++;
         }
       } catch (err) {
         console.warn(f.name, err);
       }
     }
-    if (!parts.length) {
-      setStatus('No location points found. Expected Timeline.json, location-history.json, Records.json or immich-photos.json.', true);
+    if (!added) {
+      setStatus('No location points found. Expected Timeline.json, location-history.json, Records.json, immich-photos.json or manual-places.json.', true);
       return;
     }
-    if (state.data) parts.unshift(state.data);
-    state.files.push(...names);
-    setData(parts.length === 1 ? parts[0] : merge(parts), true);
+    rebuild(true);
+  }
+
+  function rebuild(fit) {
     save();
+    if (!state.parts.length) {
+      state.data = null;
+      fog.setData(null);
+      document.body.classList.remove('has-data');
+      return;
+    }
+    setData(state.parts.length === 1 ? state.parts[0].data : merge(state.parts.map((p) => p.data)), fit);
   }
 
   // Folder drops (Takeout "Semantic Location History", Photos) arrive as directory entries.
@@ -364,9 +373,15 @@
     }
     $('range').textContent = s.first ? `${fmtDate(s.first)} – ${fmtDate(s.last)}` : 'No dates';
     $('files').innerHTML = '';
-    for (const name of state.files) {
+    for (const p of state.parts) {
       const li = document.createElement('li');
-      li.textContent = name;
+      li.textContent = `${p.name} · ${p.data.lat.length.toLocaleString()} pts `;
+      const x = document.createElement('button');
+      x.className = 'remove';
+      x.textContent = '✕';
+      x.title = `Remove ${p.name}`;
+      x.onclick = () => { state.parts = state.parts.filter((q) => q !== p); rebuild(false); };
+      li.appendChild(x);
       $('files').appendChild(li);
     }
   }
@@ -406,9 +421,9 @@
 
   async function save() {
     try {
-      const d = state.data;
+      const parts = state.parts.map(({ name, data: d }) => ({ name, lat: d.lat, lng: d.lng, t: d.t, kind: d.kind }));
       const tx = (await db()).transaction('kv', 'readwrite');
-      tx.objectStore('kv').put({ lat: d.lat, lng: d.lng, t: d.t, kind: d.kind, files: state.files }, 'data');
+      tx.objectStore('kv').put({ parts }, 'data');
     } catch (err) { console.warn('save failed', err); }
   }
 
@@ -420,19 +435,19 @@
         r.onsuccess = () => res(r.result);
         r.onerror = () => rej(r.error);
       });
-      if (v && v.lat && v.lat.length) {
-        state.files = v.files || [];
-        setData({ lat: v.lat, lng: v.lng, t: v.t, kind: v.kind }, true);
+      if (v && v.parts) {
+        state.parts = v.parts.map(({ name, ...data }) => ({ name, data }));
+      } else if (v && v.lat && v.lat.length) {
+        // Saved before per-file storage: everything was already merged into one blob.
+        state.parts = [{ name: 'earlier files (merged)', data: { lat: v.lat, lng: v.lng, t: v.t, kind: v.kind } }];
       }
+      if (state.parts.length) rebuild(true);
     } catch (err) { console.warn('restore failed', err); }
   }
 
-  async function clearAll() {
-    try { (await db()).transaction('kv', 'readwrite').objectStore('kv').delete('data'); } catch (err) { /* ignore */ }
-    state.data = null;
-    state.files = [];
-    fog.setData(null);
-    document.body.classList.remove('has-data');
+  function clearAll() {
+    state.parts = [];
+    rebuild(false);
   }
 
   // ---------- wiring ----------
