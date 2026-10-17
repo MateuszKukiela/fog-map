@@ -91,6 +91,7 @@
     state.countryIdx = classifyCountries(data);
     state.airport = airportMask(data);
     state.credible = credibility(data, state.countryIdx, state.airport);
+    state.territory = classifyTerritories(data, state.countryIdx);
     const years = new Set();
     for (const t of data.t) if (Number.isFinite(t)) years.add(new Date(t).getFullYear());
     state.allYears = Array.from(years).sort();
@@ -127,7 +128,7 @@
       }
     }
     fog.setData(prepare(data, segments, include));
-    renderStats(stats(data, segments, include), countCountries(include));
+    renderStats(stats(data, segments, include), countCountries(include), countTerritories(include));
   }
 
   // ---------- countries (Natural Earth borders, countries.js) ----------
@@ -353,12 +354,54 @@
     }
   }
 
+  // ---------- Travelers' Century Club territories (tcc.js) ----------
+
+  function territoryAt(lng, lat, k) {
+    const key = k < 0 ? null : COUNTRIES[k].c || COUNTRIES[k].n;
+    for (const [name, iso, b] of TCC_RULES) {
+      if (iso !== null && iso !== key) continue;
+      if (lng >= b[0] && lng <= b[2] && lat >= b[1] && lat <= b[3]) return name;
+    }
+    return (key && TCC_DEFAULT[key]) || null;
+  }
+
+  // Per point: index into state.territoryNames, -1 for none. Cached per ~1 km cell like countries.
+  function classifyTerritories(data, countryIdx) {
+    const names = [], index = new Map(), cache = new Map();
+    const out = new Int16Array(data.lat.length);
+    for (let i = 0; i < out.length; i++) {
+      const ix = Math.floor(data.lng[i] / COUNTRY_CELL_DEG), iy = Math.floor(data.lat[i] / COUNTRY_CELL_DEG);
+      const key = (ix * 100000 + iy) * 300 + countryIdx[i] + 1;
+      let t = cache.get(key);
+      if (t === undefined) {
+        const name = territoryAt(data.lng[i], data.lat[i], countryIdx[i]);
+        if (name && !index.has(name)) { index.set(name, names.length); names.push(name); }
+        t = name ? index.get(name) : -1;
+        cache.set(key, t);
+      }
+      out[i] = t;
+    }
+    state.territoryNames = names;
+    return out;
+  }
+
+  // Same noise rules as countries, but airport layovers count: the club counts transit stops.
+  function countTerritories(include) {
+    const { data, territory } = state;
+    const weight = new Map();
+    for (let i = 0; i < territory.length; i++) {
+      if ((include && !include[i]) || territory[i] < 0) continue;
+      weight.set(territory[i], (weight.get(territory[i]) || 0) + (data.kind[i] === 0 ? 1 : MIN_COUNTRY_WEIGHT));
+    }
+    return Array.from(weight).filter(([, w]) => w >= MIN_COUNTRY_WEIGHT).sort((a, b) => b[1] - a[1]).map(([t]) => state.territoryNames[t]);
+  }
+
   const flag = (code) => (code ? String.fromCodePoint(...[...code].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65)) : '🏳️');
 
   const fmt = (n) => Math.round(n).toLocaleString();
   const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 
-  function renderStats(s, countries) {
+  function renderStats(s, countries, territories) {
     $('stat-area').textContent = s.areaKm2 < 10 ? s.areaKm2.toFixed(1) : fmt(s.areaKm2);
     $('stat-places').textContent = fmt(s.places);
     $('stat-days').textContent = fmt(s.days);
@@ -371,6 +414,9 @@
       span.title = c.n;
       $('flags').appendChild(span);
     }
+    $('stat-tcc').textContent = `${territories.length} / ${TCC_TOTAL}`;
+    $('tcc-bar').style.width = Math.min(100, territories.length) + '%';
+    $('tcc-list').textContent = territories.join(' · ');
     $('range').textContent = s.first ? `${fmtDate(s.first)} – ${fmtDate(s.last)}` : 'No dates';
     $('files').innerHTML = '';
     for (const p of state.parts) {
