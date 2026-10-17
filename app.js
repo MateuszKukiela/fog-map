@@ -720,8 +720,7 @@
   }
 
   function addPinsLayer() {
-    map.addImage('pin-city', pinImage('#ff9e94', '#e3201b', '#6e0000'), { pixelRatio: 2 });
-    map.addImage('pin-place', pinImage('#fff3a8', '#f2c014', '#8a6400'), { pixelRatio: 2 });
+    map.addImage('pin', pinImage('#ff9e94', '#e3201b', '#6e0000'), { pixelRatio: 2 });
     map.addSource('pins', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     map.addLayer({
       id: 'pins',
@@ -729,7 +728,7 @@
       source: 'pins',
       layout: {
         visibility: 'none',
-        'icon-image': ['match', ['get', 'kind'], 'city', 'pin-city', 'pin-place'],
+        'icon-image': 'pin',
         'icon-anchor': 'bottom',
         'icon-allow-overlap': true,
         'icon-size': ['interpolate', ['linear'], ['zoom'], 2, 0.55, 8, 1],
