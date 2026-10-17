@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { timingSafeEqual } from 'node:crypto';
 import { fetchImmichPhotos, checkImmich, normalizeUrl } from './immich.mjs';
 
-const PORT = Number(process.env.PORT) || 8080;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const { IMMICH_URL, IMMICH_API_KEY, BASIC_AUTH } = process.env;
 const REFRESH_MS = (Number(process.env.IMMICH_REFRESH_HOURS) || 6) * 3600 * 1000;
@@ -92,12 +92,23 @@ async function updateImmich(req) {
 // Only these files are served; personal exports lying next to them never are.
 const STATIC = {
   '/': 'index.html',
-  '/index.html': 'index.html',
   ...Object.fromEntries(
-    ['app.js', 'parser.js', 'fog.js', 'countries.js', 'airports.js', 'tcc.js', 'cities.js', 'towns.js'].map((f) => ['/' + f, f]),
+    ['index.html', 'app.js', 'parser.js', 'fog.js', 'countries.js', 'airports.js', 'tcc.js', 'cities.js', 'towns.js',
+      'icon.svg', 'manifest.webmanifest', 'vendor/maplibre-gl/maplibre-gl.js', 'vendor/maplibre-gl/maplibre-gl.css'].map((f) => ['/' + f, f]),
   ),
 };
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
+const TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.webmanifest': 'application/manifest+json',
+};
+const SECURITY_HEADERS = {
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'same-origin',
+  'x-frame-options': 'DENY',
+};
 
 const expectedAuth = BASIC_AUTH ? Buffer.from('Basic ' + Buffer.from(BASIC_AUTH).toString('base64')) : null;
 function authorized(req) {
@@ -134,13 +145,15 @@ function immichJson(force) {
 }
 
 function send(res, status, type, body) {
-  res.writeHead(status, { 'content-type': type, 'cache-control': 'no-cache' });
+  res.writeHead(status, { ...SECURITY_HEADERS, 'content-type': type, 'cache-control': 'no-cache' });
   res.end(body);
 }
 
 const server = http.createServer(async (req, res) => {
+  // Health check for Docker/orchestrators: no login, no data.
+  if (req.url === '/healthz') return send(res, 200, 'text/plain', 'ok');
   if (!authorized(req)) {
-    res.writeHead(401, { 'www-authenticate': 'Basic realm="fog-map"' });
+    res.writeHead(401, { ...SECURITY_HEADERS, 'www-authenticate': 'Basic realm="fog-map"' });
     return res.end();
   }
   const url = new URL(req.url, 'http://localhost');
@@ -193,7 +206,17 @@ const server = http.createServer(async (req, res) => {
 
 await loadSettings();
 server.listen(PORT, () => {
-  console.log(`fog-map on :${PORT}` + (immich ? `, Immich at ${immich.url}` : ', Immich not configured') + (expectedAuth ? ', login required' : ''));
+  console.log(`fog-map on :${server.address().port}` + (immich ? `, Immich at ${immich.url}` : ', Immich not configured') + (expectedAuth ? ', login required' : ''));
   if (!expectedAuth) console.warn('No BASIC_AUTH set: anyone who can reach this port can see your photo locations and change settings.');
   if (immich) immichJson(false).catch(() => {}); // warm the cache
 });
+
+// Stop cleanly on `docker stop` / Ctrl-C instead of waiting to be killed.
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.on(signal, () => {
+    console.log(`${signal} received, shutting down`);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5000).unref();
+    server.closeIdleConnections?.();
+  });
+}

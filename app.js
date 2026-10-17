@@ -90,6 +90,7 @@
     state.segments = buildSegments(data);
     state.countryIdx = classifyCountries(data);
     state.airport = airportMask(data);
+    state.home = detectHome(data, state.countryIdx, state.airport);
     state.credible = credibility(data, state.countryIdx, state.airport);
     state.territory = classifyTerritories(data, state.countryIdx);
     state.city = classifyCities(data);
@@ -114,7 +115,10 @@
       if (lng[i] < w) w = lng[i];
       if (lng[i] > e) e = lng[i];
     }
-    map.fitBounds([[w, s], [e, n]], { padding: 60, maxZoom: 12, duration: 0 });
+    // Keep the data clear of the panel on wide screens.
+    const panel = document.querySelector('.panel').getBoundingClientRect();
+    const left = window.innerWidth > 700 && !document.body.classList.contains('collapsed') ? panel.right + 40 : 40;
+    map.fitBounds([[w, s], [e, n]], { padding: { top: 60, bottom: 60, right: 60, left }, maxZoom: 12, duration: 0 });
   }
 
   // ---------- filtering + stats ----------
@@ -212,7 +216,19 @@
     return Array.from(weight).filter(([, w]) => w >= MIN_COUNTRY_WEIGHT).sort((a, b) => b[1] - a[1]).map(([k]) => COUNTRIES[k]);
   }
 
-  const HOME_COUNTRY = 'PL';
+  // Home = the country index with the most distinct days in the data (airports ignored).
+  function detectHome(data, countryIdx, airport) {
+    const days = new Map();
+    for (let i = 0; i < countryIdx.length; i++) {
+      const k = countryIdx[i], t = data.t[i];
+      if (k < 0 || airport[i] || !Number.isFinite(t)) continue;
+      if (!days.has(k)) days.set(k, new Set());
+      days.get(k).add(localDay(t));
+    }
+    let home = -1, best = 0;
+    for (const [k, set] of days) if (set.size > best) { best = set.size; home = k; }
+    return home;
+  }
 
   const DAY_MS = 86400000;
   const FLIGHT_MPS = 70; // ~250 km/h: faster than any car/train, so the fix was taken from a plane
@@ -311,7 +327,7 @@
     }
     for (const [key, g] of groups) {
       const k = Math.floor(key / 1e5), day = key % 1e5;
-      if (g.max - g.min >= MIN_STAY_MS || COUNTRIES[k].c === HOME_COUNTRY) continue;
+      if (g.max - g.min >= MIN_STAY_MS || k === state.home) continue;
       let again = false;
       for (let d = 1; d <= STAY_WINDOW_DAYS && !again; d++) again = days.get(k).has(day - d) || days.get(k).has(day + d);
       if (!again) for (const i of g.idx) ok[i] = 0;
@@ -319,14 +335,14 @@
     return ok;
   }
 
-  // year -> days spent outside HOME_COUNTRY, with short data gaps inside a trip filled in
+  // year -> days spent outside the home country, with short data gaps inside a trip filled in
   function daysAbroadByYear() {
     const { data, countryIdx, credible } = state;
     const abroad = new Set(), home = new Set();
     for (let i = 0; i < countryIdx.length; i++) {
       const k = countryIdx[i], t = data.t[i];
       if (!credible[i] || state.airport[i] || k < 0 || !Number.isFinite(t)) continue;
-      (COUNTRIES[k].c === HOME_COUNTRY ? home : abroad).add(localDay(t));
+      (k === state.home ? home : abroad).add(localDay(t));
     }
     const sorted = Array.from(abroad).sort((a, b) => a - b);
     for (let j = 1; j < sorted.length; j++) {
@@ -345,6 +361,8 @@
   }
 
   function renderAbroad() {
+    const home = COUNTRIES[state.home];
+    $('abroad-title').textContent = home ? `days outside ${home.n} ${flag(home.c)}` : 'days abroad';
     const years = daysAbroadByYear();
     const max = Math.max(1, ...years.values());
     $('abroad').innerHTML = '';
@@ -883,6 +901,7 @@
   initSettings();
   map.on('load', async () => {
     addPinsLayer();
+    if (location.hash === '#pins') setView('pins'); // direct link to the pins view
     await restore();
     loadImmich();
   });

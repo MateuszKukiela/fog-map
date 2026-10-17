@@ -8,5 +8,8 @@
 !tcc.js
 !cities.js
 !towns.js
+!icon.svg
+!manifest.webmanifest
 !immich.mjs
 !server.mjs
+!vendor/maplibre-gl/

@@ -1,13 +1,17 @@
 services:
   fog-map:
-    build: .
+    image: ghcr.io/mateuszkukiela/fog-map:latest
+    container_name: fog-map
     restart: unless-stopped
     ports:
       - "8080:8080"
     volumes:
-      - ./data:/data   # Immich settings saved from the page (⚙ Settings)
+      - fog-map-data:/data   # Immich connection saved from the page (⚙ Settings)
     environment:
-      # Strongly recommended if anyone else can reach the page: it shows where your photos were
-      # taken and lets visitors change the Immich connection.
-      # BASIC_AUTH: me:change-this-password
+      # Login for the whole site. Set it if anyone else can reach the page: it shows where your
+      # photos were taken and lets visitors change the Immich connection.
+      BASIC_AUTH: me:change-this-password
       # IMMICH_REFRESH_HOURS: 6
+
+volumes:
+  fog-map-data:

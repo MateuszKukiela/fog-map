@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#080b18">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<link rel="stylesheet" href="vendor/maplibre-gl/maplibre-gl.css">
 <style>
   :root {
     --panel: rgba(14, 18, 34, 0.86);
@@ -189,7 +189,7 @@
     <div class="stat tcc"><b>🏆 <span id="stat-tcc">0</span></b><span>Travelers' Century Club territories (100 to join)</span>
       <div class="tcc-track"><i id="tcc-bar"></i></div>
       <div id="tcc-list"></div></div>
-    <div class="stat abroad"><span>days outside Poland</span><div id="abroad"></div></div>
+    <div class="stat abroad"><span id="abroad-title">days abroad</span><div id="abroad"></div></div>
     <div id="range"></div>
     <div class="chips" id="years"></div>
     <label class="slider">Reveal radius <span id="radius-out"></span>
@@ -244,7 +244,7 @@
   </form>
 </dialog>
 
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="vendor/maplibre-gl/maplibre-gl.js"></script>
 <script src="parser.js"></script>
 <script src="fog.js"></script>
 <script src="countries.js"></script>
