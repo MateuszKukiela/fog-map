@@ -131,7 +131,7 @@
     fog.setData(prepare(data, segments, include));
     const cities = countCities(include);
     renderStats(stats(data, segments, include), countCountries(include), countTerritories(include), cities);
-    setPins(cities);
+    setPins(cities, placePins(include));
   }
 
   // ---------- countries (Natural Earth borders, countries.js) ----------
@@ -601,7 +601,63 @@
 
   // ---------- pins view: red push-pins on visited cities, like a paper map on the wall ----------
 
-  function pinImage() {
+  // ---------- yellow pins: places you've really been that aren't a 100k+ city ----------
+
+  const PLACE_CELL_DEG = 0.05; // ~5 km
+  const PLACE_MERGE_M = 15000; // one pin per ~15 km area
+
+  let townGrid = null;
+  function nearestTown(lat, lng, maxM) {
+    if (!townGrid) {
+      townGrid = new Map();
+      for (const t of TOWNS) {
+        const k = Math.floor(t[2] / CITY_BUCKET_DEG) * 1000 + Math.floor(t[3] / CITY_BUCKET_DEG);
+        if (!townGrid.has(k)) townGrid.set(k, []);
+        townGrid.get(k).push(t);
+      }
+    }
+    let best = null, bestD = maxM;
+    const by = Math.floor(lat / CITY_BUCKET_DEG), bx = Math.floor(lng / CITY_BUCKET_DEG);
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (const t of townGrid.get((by + dy) * 1000 + bx + dx) || []) {
+          const d = distanceM(lat, lng, t[2], t[3]);
+          if (d < bestD) { bestD = d; best = t; }
+        }
+      }
+    }
+    return best;
+  }
+
+  // Heaviest ~5 km cells first; each becomes a pin unless a city pin or another place pin is within 15 km.
+  function placePins(include) {
+    const { data, city, airport } = state;
+    const cells = new Map();
+    for (let i = 0; i < data.lat.length; i++) {
+      if ((include && !include[i]) || airport[i] || city[i] >= 0) continue;
+      const key = Math.floor(data.lat[i] / PLACE_CELL_DEG) * 100000 + Math.floor(data.lng[i] / PLACE_CELL_DEG);
+      const w = data.kind[i] === 0 ? 1 : MIN_COUNTRY_WEIGHT;
+      const c = cells.get(key) || { w: 0, lat: 0, lng: 0 };
+      c.w += w;
+      c.lat += data.lat[i] * w;
+      c.lng += data.lng[i] * w;
+      cells.set(key, c);
+    }
+    const taken = countCities(include).map((c) => [c[2], c[3]]);
+    const places = [];
+    for (const c of [...cells.values()].sort((a, b) => b.w - a.w)) {
+      if (c.w < MIN_COUNTRY_WEIGHT) break;
+      const lat = c.lat / c.w, lng = c.lng / c.w;
+      if (taken.some(([a, b]) => distanceM(lat, lng, a, b) < PLACE_MERGE_M)) continue;
+      taken.push([lat, lng]);
+      const near = nearestTown(lat, lng, PLACE_MERGE_M);
+      const far = near || nearestTown(lat, lng, 60000);
+      places.push([near ? near[0] : far ? `near ${far[0]}` : 'Visited place', far ? far[1] : '', lat, lng]);
+    }
+    return places;
+  }
+
+  function pinImage(light, mid, dark) {
     const s = 2, w = 28, h = 40; // drawn at 2x for sharp pins on retina screens
     const c = document.createElement('canvas');
     c.width = w * s;
@@ -625,9 +681,9 @@
     g.stroke();
     // glossy red head
     const grad = g.createRadialGradient(10, 8, 1, 13, 11, 9);
-    grad.addColorStop(0, '#ff9e94');
-    grad.addColorStop(0.35, '#e3201b');
-    grad.addColorStop(1, '#6e0000');
+    grad.addColorStop(0, light);
+    grad.addColorStop(0.35, mid);
+    grad.addColorStop(1, dark);
     g.fillStyle = grad;
     g.beginPath();
     g.arc(13, 11, 8, 0, 2 * Math.PI);
@@ -640,7 +696,8 @@
   }
 
   function addPinsLayer() {
-    map.addImage('pin', pinImage(), { pixelRatio: 2 });
+    map.addImage('pin-city', pinImage('#ff9e94', '#e3201b', '#6e0000'), { pixelRatio: 2 });
+    map.addImage('pin-place', pinImage('#fff3a8', '#f2c014', '#8a6400'), { pixelRatio: 2 });
     map.addSource('pins', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     map.addLayer({
       id: 'pins',
@@ -648,7 +705,7 @@
       source: 'pins',
       layout: {
         visibility: 'none',
-        'icon-image': 'pin',
+        'icon-image': ['match', ['get', 'kind'], 'city', 'pin-city', 'pin-place'],
         'icon-anchor': 'bottom',
         'icon-allow-overlap': true,
         'icon-size': ['interpolate', ['linear'], ['zoom'], 2, 0.55, 8, 1],
@@ -663,13 +720,11 @@
     map.on('mouseleave', 'pins', () => { map.getCanvas().style.cursor = ''; });
   }
 
-  function setPins(cities) {
+  function setPins(cities, places) {
     const src = map.getSource('pins');
     if (!src) return;
-    src.setData({
-      type: 'FeatureCollection',
-      features: cities.map(([name, cc, lat, lng]) => ({ type: 'Feature', properties: { name, cc, lat }, geometry: { type: 'Point', coordinates: [lng, lat] } })),
-    });
+    const feature = (kind) => ([name, cc, lat, lng]) => ({ type: 'Feature', properties: { kind, name, cc, lat }, geometry: { type: 'Point', coordinates: [lng, lat] } });
+    src.setData({ type: 'FeatureCollection', features: [...cities.map(feature('city')), ...places.map(feature('place'))] });
   }
 
   function setView(view) {
