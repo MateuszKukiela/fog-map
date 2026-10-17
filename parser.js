@@ -6,7 +6,7 @@
 //   - Legacy Takeout Semantic Location History monthly files (timelineObjects[])
 //   - Google Photos Takeout sidecar JSON  (geoData)
 //   - Immich export from immich-export.mjs ({source: 'immich', photos[]})
-//   - Hand-written places ({source: 'manual', places: [{name, lat, lng, date}]})
+//   - Hand-written places ({source: 'manual', places: [{name, lat, lng, date, to?}]})
 // Works in the browser (window.FogParser) and in Node (module.exports) for tests.
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -187,7 +187,14 @@
       } else if (json.source === 'manual' && Array.isArray(json.places)) {
         format = 'manual';
         // Date-only entries mean midday local time, so they land on the right day.
-        for (const p of json.places) sink.add(parseCoord(p), parseTime(/^\d{4}-\d{2}-\d{2}$/.test(p.date) ? p.date + 'T12:00:00' : p.date), KIND.MANUAL);
+        const midday = (d) => parseTime(/^\d{4}-\d{2}-\d{2}$/.test(d) ? d + 'T12:00:00' : d);
+        for (const p of json.places) {
+          const start = midday(p.date), end = p.to ? midday(p.to) : start;
+          // One point per day of a stay; setDate keeps midday across DST changes.
+          for (const d = new Date(start); d.getTime() <= end; d.setDate(d.getDate() + 1)) {
+            sink.add(parseCoord(p), d.getTime(), KIND.MANUAL);
+          }
+        }
       } else if (json.geoData || json.geoDataExif) {
         format = 'google-photos';
         readPhoto(json, sink);
