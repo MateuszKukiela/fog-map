@@ -3,6 +3,21 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org).
 
+## [1.1.0] - 2026-10-18
+
+### Added
+
+- Uploaded files and places are stored on the server (`/data`), so every device shows the same map.
+  Files are parsed in the browser and uploaded in a compact binary form.
+- Places editor: add, edit and delete trips by hand, with offline search over 76,000 towns (every
+  capital included, accent-insensitive) or picking the spot on the map.
+- Dropping `manual-places.json` imports its places into the list.
+- Data saved in a browser by earlier versions moves to the server automatically on first visit.
+
+### Changed
+
+- Bundled town list now includes all capitals and regional seats regardless of size.
+
 ## [1.0.1] - 2026-10-17
 
 ### Fixed
@@ -26,5 +41,6 @@ First public release.
 - Noise cleanup: in-flight points, geolocation teleports, one-off countries, airport layovers.
 - Docker image for linux/amd64 and linux/arm64 with health check, optional basic auth and SBOM/provenance attestations.
 
+[1.1.0]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.1.0
 [1.0.1]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.0.1
 [1.0.0]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.0.0

@@ -29,7 +29,8 @@ the only outside requests are map tiles.
 - **Counters** — countries with flags, cities over 100k people, [Travelers' Century Club](https://travelerscenturyclub.org) territories (n / 330) and days abroad per year. Your home country is detected automatically.
 - **Year filter** — see one year, or several, at a time.
 - **Noise cleanup** — GPS glitches, photos taken from plane windows, airport layovers and one-off stray points don't count.
-- **Manual places** — add trips from before your data starts (`manual-places.json`).
+- **Places editor** — add trips that aren't in any export (search 76,000 towns offline, or pick on the map).
+- **Stored on your server** — uploaded files and places live in the `/data` volume, so every device shows the same map.
 - **Tiny and dependency-free** — plain JavaScript, a ~200-line Node server, no database, no build step. Multi-arch image for amd64 and arm64 (Raspberry Pi).
 
 <table>
@@ -80,24 +81,26 @@ Google keeps Timeline on your phone, so export it from there and drop the file o
 
 Old Google Takeout exports work too: drop `Records.json` or the whole `Semantic Location History` folder.
 You can drop several files at once (exports from different phones are merged), remove any file with ✕,
-and dropping a file with the same name replaces the old one. Dropped files are stored in your browser
-(IndexedDB), not on the server.
+and dropping a file with the same name replaces the old one. Files are read in your browser and uploaded
+to the server in a compact form (a 43 MB `Timeline.json` becomes a few MB), so every device sees them.
 
-### Manual places
+### Places
 
-For trips that aren't in your data, create `manual-places.json` and drop it on the page:
+For trips that aren't in your data — a holiday before you had a smartphone, a day trip without photos —
+open **Places**, search for the town (76,000 towns and every capital are bundled, so it works offline)
+or click **Pick on map**, and set the dates. Places always count.
+
+You can also import a list by dropping a `manual-places.json`:
 
 ```json
 {
   "source": "manual",
   "places": [
-    { "name": "San Marino", "lat": 43.9356, "lng": 12.4473, "date": "2015-07-20" },
-    { "name": "London", "lat": 51.5074, "lng": -0.1278, "date": "2010-11-08", "to": "2010-11-21" }
+    { "name": "Reykjavík", "lat": 64.1466, "lng": -21.9426, "date": "2019-06-02" },
+    { "name": "Lisbon", "lat": 38.7223, "lng": -9.1393, "date": "2021-09-10", "to": "2021-09-17" }
   ]
 }
 ```
-
-`date` is the first day and the optional `to` the last day of the stay. Manual places always count.
 
 ## Configuration
 
@@ -108,7 +111,7 @@ Everything can be set in the page. Environment variables are optional:
 | `BASIC_AUTH` | — | `user:password` login for the whole site. **Set it whenever anyone else can reach the page.** |
 | `IMMICH_URL`, `IMMICH_API_KEY` | — | Starting values for the Immich connection. Settings saved in the page take precedence. |
 | `IMMICH_REFRESH_HOURS` | `6` | How long Immich results are cached on the server. |
-| `DATA_DIR` | `/data` | Where settings are stored. Mount a volume here. |
+| `DATA_DIR` | `/data` | Settings, uploaded location data and places. Mount a volume here and back it up. |
 | `PORT` | `8080` | HTTP port inside the container. |
 
 Image tags: `latest` and `1`, `1.0`, `1.0.0` for releases, `edge` for the newest `main` build.
@@ -118,9 +121,12 @@ Image tags: `latest` and `1`, `1.0`, `1.0.0` for releases, `edge` for the newest
 - **Use `BASIC_AUTH` or put the app behind your own authentication** (Authelia, Authentik, Cloudflare Access…)
   if it's reachable by anyone but you. The map shows where every one of your photos was taken, and the
   settings let visitors change the Immich connection.
-- The Immich API key is saved in `DATA_DIR/settings.json` with `0600` permissions and never returned by the API.
+- Everything is stored in `DATA_DIR`: `settings.json` (Immich key), `sources/` (uploaded location data) and
+  `places.json`. Files are written with `0600` permissions; treat the volume like your photo library.
+- The Immich API key is never returned by the API.
   Changing the server URL requires entering the key again, so a saved key can't be redirected to another host.
-- Settings can only be changed with JSON requests, which other websites can't forge from your browser.
+- Every write needs a JSON or binary request type, which other websites can't forge from your browser,
+  and uploads are validated (coordinates, timestamps, size) before they're stored.
 - The server serves an explicit allowlist of files; nothing else in the image or volume is reachable.
 - The server runs as an unprivileged user (the entrypoint only uses root to make `/data` writable,
   so bind mounts work without a manual `chown`) and has a health check at `/healthz`.
@@ -156,6 +162,7 @@ npm start         # http://localhost:8080
 | File | What it does |
 |---|---|
 | `server.mjs` | HTTP server: static files, settings, Immich sync, login |
+| `library.mjs` | Server-side storage for uploaded location data and places |
 | `immich.mjs` | Immich API client (shared with `immich-export.mjs`) |
 | `parser.js` | Reads every supported export format |
 | `fog.js` | Fog rendering and exploration statistics |

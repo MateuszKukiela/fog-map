@@ -4,7 +4,9 @@
   const { prepare, stats, FogLayer } = window.Fog;
 
   const $ = (id) => document.getElementById(id);
-  const state = { data: null, segments: null, parts: [], years: new Set() }; // parts: [{name, data}], one per file
+  // parts: one per source, { name, kind: 'file' | 'immich' | 'places', data, id? (server file id) }.
+  // server: true when served by server.mjs; then files and places live on the server, not in this browser.
+  const state = { data: null, segments: null, parts: [], places: [], years: new Set(), server: false };
 
   const map = new maplibregl.Map({
     container: 'map',
@@ -30,31 +32,43 @@
 
   async function readFiles(files) {
     let added = 0;
+    const errors = [];
     for (const f of files) {
       if (!/\.json$/i.test(f.name)) continue;
       setStatus(`Reading ${f.name} (${(f.size / 1e6).toFixed(1)} MB)…`);
       await new Promise(requestAnimationFrame);
       try {
-        const d = parse(JSON.parse(await f.text()));
-        if (d.lat.length) {
-          // Same file name again = newer version of that file, replace it.
-          state.parts = state.parts.filter((p) => p.name !== f.name);
-          state.parts.push({ name: f.name, data: d });
-          added++;
+        const json = JSON.parse(await f.text());
+        const d = parse(json);
+        if (!d.lat.length) continue;
+        if (state.server && d.format === 'manual') {
+          added += await importPlaces(json.places);
+          continue;
         }
+        let id;
+        if (state.server) {
+          setStatus(`Uploading ${f.name}…`);
+          id = (await uploadSource(f.name, d)).id;
+        }
+        // Same file name again = newer version of that file, replace it.
+        state.parts = state.parts.filter((p) => p.name !== f.name);
+        state.parts.push({ name: f.name, kind: 'file', id, data: d });
+        added++;
       } catch (err) {
         console.warn(f.name, err);
+        errors.push(`${f.name}: ${err.message}`);
       }
     }
     if (!added) {
-      setStatus('No location points found. Expected Timeline.json, location-history.json, Records.json, immich-photos.json or manual-places.json.', true);
+      setStatus(errors.join(' ') || 'No location points found. Expected Timeline.json, location-history.json, Records.json, immich-photos.json or manual-places.json.', true);
       return;
     }
+    setStatus(errors.join(' '), errors.length > 0);
     rebuild(true);
   }
 
   function rebuild(fit) {
-    save();
+    if (!state.server) save();
     if (!state.parts.length) {
       state.data = null;
       fog.setData(null);
@@ -495,13 +509,27 @@
     $('files').innerHTML = '';
     for (const p of state.parts) {
       const li = document.createElement('li');
-      li.textContent = `${p.name} · ${p.data.lat.length.toLocaleString()} pts `;
+      const label = document.createElement('span');
+      label.textContent = p.kind === 'places'
+        ? `Places · ${state.places.length.toLocaleString()} added by hand`
+        : `${p.name} · ${p.data.lat.length.toLocaleString()} pts`;
       const x = document.createElement('button');
       x.className = 'remove';
-      x.textContent = '✕';
-      x.title = `Remove ${p.name}`;
-      x.onclick = () => { state.parts = state.parts.filter((q) => q !== p); rebuild(false); };
-      li.appendChild(x);
+      if (p.kind === 'immich') {
+        x.textContent = 'Settings';
+        x.title = 'Immich is managed in Settings';
+        x.onclick = () => $('open-settings').click();
+      } else if (p.kind === 'places') {
+        x.textContent = 'Edit';
+        x.title = 'Edit your places';
+        x.onclick = openPlaces;
+      } else {
+        x.textContent = '✕';
+        x.title = `Remove ${p.name}` + (state.server ? ' from the server' : '');
+        x.setAttribute('aria-label', x.title);
+        x.onclick = () => removePart(p);
+      }
+      li.append(label, x);
       $('files').appendChild(li);
     }
   }
@@ -562,7 +590,8 @@
     return out;
   }
 
-  async function restore() {
+  // Parts saved in this browser's IndexedDB (file mode, or before data moved to the server).
+  async function readLocal() {
     try {
       const store = (await db()).transaction('kv').objectStore('kv');
       const v = await new Promise((res, rej) => {
@@ -570,19 +599,168 @@
         r.onsuccess = () => res(r.result);
         r.onerror = () => rej(r.error);
       });
+      let parts = [];
       if (v && v.parts) {
-        state.parts = v.parts.map(({ name, ...data }) => ({ name, data }));
+        parts = v.parts.map(({ name, ...data }) => ({ name, kind: name === IMMICH_PART ? 'immich' : 'file', data }));
       } else if (v && v.lat && v.lat.length) {
-        state.parts = [{ name: 'earlier files (merged)', data: { lat: v.lat, lng: v.lng, t: v.t, kind: v.kind } }];
+        parts = [{ name: 'earlier files (merged)', data: { lat: v.lat, lng: v.lng, t: v.t, kind: v.kind } }];
       }
-      state.parts = state.parts.flatMap((p) => (p.name === 'earlier files (merged)' ? splitBySource(p.data) : [p]));
-      if (state.parts.length) rebuild(true);
-    } catch (err) { console.warn('restore failed', err); }
+      return parts.flatMap((p) => (p.name === 'earlier files (merged)' ? splitBySource(p.data).map((q) => ({ ...q, kind: 'file' })) : [p]));
+    } catch (err) {
+      console.warn('restore failed', err);
+      return [];
+    }
   }
 
-  function clearAll() {
-    state.parts = [];
+  async function forgetLocal() {
+    try { (await db()).transaction('kv', 'readwrite').objectStore('kv').delete('data'); } catch (err) { console.warn(err); }
+  }
+
+  async function restore() {
+    state.parts = await readLocal();
+    if (state.parts.length) rebuild(true);
+  }
+
+  async function removePart(p) {
+    if (state.server && p.id) {
+      try {
+        await api('DELETE', 'api/sources/' + p.id);
+      } catch (err) {
+        return setStatus(`Could not remove ${p.name}: ${err.message}`, true);
+      }
+    }
+    state.parts = state.parts.filter((q) => q !== p);
     rebuild(false);
+  }
+
+  async function clearAll() {
+    const files = state.parts.filter((p) => p.kind === 'file');
+    if (state.server) {
+      if (!files.length) return;
+      if (!confirm(`Delete ${files.length === 1 ? files[0].name : `all ${files.length} uploaded files`} from the server?\nImmich photos and your places stay.`)) return;
+      for (const p of files) await removePart(p);
+      return;
+    }
+    state.parts = state.parts.filter((p) => p.kind !== 'file');
+    rebuild(false);
+  }
+
+  // ---------- server library (server.mjs): uploaded files and places stored in DATA_DIR ----------
+
+  async function api(method, path, body) {
+    const init = { method };
+    if (body !== undefined) {
+      init.headers = { 'content-type': 'application/json' };
+      init.body = JSON.stringify(body);
+    }
+    const res = await fetch(path, init);
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+    return json;
+  }
+
+  // Wire format shared with library.mjs (little-endian): u32 n | f64 lat×n | f64 lng×n | f64 t×n | u8 kind×n
+  function encodePoints(d) {
+    const n = d.lat.length;
+    const out = new Uint8Array(4 + n * 25);
+    new DataView(out.buffer).setUint32(0, n, true);
+    const bytes = (a) => new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+    out.set(bytes(Float64Array.from(d.lat)), 4);
+    out.set(bytes(Float64Array.from(d.lng)), 4 + n * 8);
+    out.set(bytes(Float64Array.from(d.t)), 4 + n * 16);
+    out.set(d.kind, 4 + n * 24);
+    return out;
+  }
+
+  function decodePoints(buf) {
+    const u8 = new Uint8Array(buf);
+    const n = new DataView(buf).getUint32(0, true);
+    const f64 = (i) => new Float64Array(u8.slice(4 + i * n * 8, 4 + (i + 1) * n * 8).buffer);
+    return { lat: f64(0), lng: f64(1), t: f64(2), kind: u8.slice(4 + n * 24) };
+  }
+
+  async function uploadSource(name, d) {
+    const res = await fetch('api/sources', {
+      method: 'POST',
+      headers: { 'content-type': 'application/octet-stream', 'x-source-name': encodeURIComponent(name) },
+      body: encodePoints(d),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+    return json.source;
+  }
+
+  const placesPart = () =>
+    state.places.length ? [{ name: 'Places', kind: 'places', data: parse({ source: 'manual', places: state.places }) }] : [];
+
+  async function loadLibrary() {
+    setStatus('Loading your data…');
+    try {
+      const [{ sources }, { places }] = await Promise.all([api('GET', 'api/sources'), api('GET', 'api/places')]);
+      const files = await Promise.all(sources.map(async (s) => {
+        const res = await fetch('api/sources/' + s.id);
+        if (!res.ok) throw new Error(`could not load ${s.name}`);
+        return { name: s.name, kind: 'file', id: s.id, data: decodePoints(await res.arrayBuffer()) };
+      }));
+      state.places = places;
+      state.parts = [...files, ...placesPart(), ...state.parts.filter((p) => p.kind === 'immich')];
+      if (!sources.length && !places.length) await moveLocalToServer();
+      setStatus('');
+      if (state.parts.length) rebuild(true);
+    } catch (err) {
+      setStatus(`Could not load your data from the server: ${err.message}`, true);
+    }
+  }
+
+  // First visit after an upgrade: data dropped in this browser earlier moves to the server.
+  async function moveLocalToServer() {
+    const local = (await readLocal()).filter((p) => p.kind === 'file');
+    if (!local.length) return;
+    let moved = 0;
+    for (const p of local) {
+      setStatus(`Moving ${p.name} from this browser to the server…`);
+      if (p.data.kind.every((k) => k === 4)) {
+        await savePlaces([...state.places, ...placesFromPoints(p.data)]);
+      } else {
+        const id = (await uploadSource(p.name, p.data)).id;
+        state.parts.push({ ...p, id });
+      }
+      moved++;
+    }
+    await forgetLocal();
+    console.info(`Moved ${moved} saved file(s) from this browser to the server.`);
+  }
+
+  // Hand-added places saved earlier only as points (one per day): rebuild them as stays.
+  function placesFromPoints(d) {
+    const idx = Array.from(d.lat.keys()).sort((a, b) => d.t[a] - d.t[b]);
+    const day = (t) => new Date(t).toLocaleDateString('en-CA'); // YYYY-MM-DD, local
+    const out = [];
+    for (const i of idx) {
+      const last = out[out.length - 1];
+      if (last && last.lat === d.lat[i] && last.lng === d.lng[i] && d.t[i] - last.end <= 86400000 * 1.5) {
+        last.to = day(d.t[i]);
+        last.end = d.t[i];
+        continue;
+      }
+      const town = nearestTown(d.lat[i], d.lng[i], 30000);
+      out.push({ name: town ? town[0] : 'Place', lat: d.lat[i], lng: d.lng[i], date: day(d.t[i]), end: d.t[i] });
+    }
+    return out.map(({ end, ...p }) => p);
+  }
+
+  async function savePlaces(places) {
+    state.places = (await api('PUT', 'api/places', { places })).places;
+    state.parts = [...state.parts.filter((p) => p.kind !== 'places'), ...placesPart()];
+  }
+
+  // A dropped manual-places.json adds its places to the list (exact duplicates are skipped).
+  async function importPlaces(places) {
+    const key = (p) => [p.name, p.lat, p.lng, p.date, p.to || ''].join('|');
+    const have = new Set(state.places.map(key));
+    const fresh = (places || []).filter((p) => !have.has(key(p)));
+    if (fresh.length) await savePlaces([...state.places, ...fresh]);
+    return fresh.length;
   }
 
   // ---------- wiring ----------
@@ -590,7 +768,9 @@
   $('pick').onclick = () => $('file').click();
   $('add').onclick = () => $('file').click();
   $('file').onchange = (e) => { readFiles(Array.from(e.target.files)); e.target.value = ''; };
-  $('clear').onclick = clearAll;
+  $('clear').onclick = () => clearAll();
+  $('open-places').onclick = openPlaces;
+  $('open-places-empty').onclick = openPlaces;
   $('collapse').onclick = () => document.body.classList.toggle('collapsed');
 
   const radius = $('radius');
@@ -791,7 +971,7 @@
       const d = parse(await res.json());
       const first = !state.parts.length;
       state.parts = state.parts.filter((p) => p.name !== IMMICH_PART);
-      state.parts.push({ name: IMMICH_PART, data: d });
+      state.parts.push({ name: IMMICH_PART, kind: 'immich', data: d });
       setStatus('');
       rebuild(first);
       return d.lat.length;
@@ -815,6 +995,8 @@
     } catch {
       return;
     }
+    state.server = true;
+    document.body.classList.add('server');
     $('open-settings').hidden = false;
     renderImmich();
     if (location.hash === '#settings') $('open-settings').click(); // direct link to settings
@@ -898,11 +1080,232 @@
     immichMsg('Disconnected. The saved API key was deleted from the server.', 'ok');
   });
 
-  initSettings();
+  // ---------- places dialog: trips that aren't in any export, stored on the server ----------
+
+  const placesDlg = $('places-dlg');
+  const form = { index: -1, name: '', lat: null, lng: null }; // index >= 0 while editing
+
+  const fmtDay = (d) => new Date(d + 'T00:00:00Z').toLocaleDateString(undefined, { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
+  const fmtStay = (p) => (p.to ? `${fmtDay(p.date)} – ${fmtDay(p.to)}` : fmtDay(p.date));
+
+  function openPlaces() {
+    resetPlaceForm();
+    renderPlaces();
+    placesDlg.showModal();
+  }
+
+  function placeMsg(text, kind) {
+    $('place-msg').textContent = text;
+    $('place-msg').className = 'msg' + (kind ? ' ' + kind : '');
+  }
+
+  function renderPlaces() {
+    const list = $('places-list');
+    list.innerHTML = '';
+    $('places-empty').hidden = state.places.length > 0;
+    const order = state.places.map((p, i) => i).sort((a, b) => state.places[b].date.localeCompare(state.places[a].date));
+    for (const i of order) {
+      const p = state.places[i];
+      const li = document.createElement('li');
+      const text = document.createElement('div');
+      const name = document.createElement('strong');
+      name.textContent = p.name;
+      const when = document.createElement('span');
+      when.textContent = fmtStay(p);
+      text.append(name, when);
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'link';
+      edit.textContent = 'Edit';
+      edit.onclick = () => editPlace(i);
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'link-danger';
+      del.textContent = 'Delete';
+      del.onclick = () => deletePlace(i);
+      li.append(text, edit, del);
+      list.appendChild(li);
+    }
+  }
+
+  function renderPlaceForm() {
+    $('place-form-title').textContent = form.index >= 0 ? 'Edit place' : 'Add a place';
+    $('place-save').textContent = form.index >= 0 ? 'Save changes' : 'Add place';
+    $('place-cancel').hidden = form.index < 0;
+    $('place-coords').textContent = form.lat == null ? 'No location yet: search above or pick it on the map.' : `📍 ${form.lat.toFixed(4)}, ${form.lng.toFixed(4)}`;
+  }
+
+  function resetPlaceForm() {
+    Object.assign(form, { index: -1, name: '', lat: null, lng: null });
+    $('place-search').value = '';
+    $('place-from').value = '';
+    $('place-to').value = '';
+    hideSuggestions();
+    placeMsg('');
+    renderPlaceForm();
+  }
+
+  function editPlace(i) {
+    const p = state.places[i];
+    Object.assign(form, { index: i, name: p.name, lat: p.lat, lng: p.lng });
+    $('place-search').value = p.name;
+    $('place-from').value = p.date;
+    $('place-to').value = p.to || '';
+    placeMsg('');
+    renderPlaceForm();
+    $('place-search').focus();
+  }
+
+  async function deletePlace(i) {
+    if (!confirm(`Delete ${state.places[i].name} (${fmtStay(state.places[i])})?`)) return;
+    try {
+      await savePlaces(state.places.filter((_, j) => j !== i));
+      if (form.index === i) resetPlaceForm();
+      else if (form.index > i) form.index--;
+      renderPlaces();
+      rebuild(false);
+    } catch (err) {
+      placeMsg(err.message, 'err');
+    }
+  }
+
+  // Offline search over the bundled towns: exact name first, then capitals, then bigger places.
+  const FOLD = { ø: 'o', æ: 'ae', œ: 'oe', ß: 'ss', ł: 'l', đ: 'd', ð: 'd', þ: 'th', ı: 'i' }; // letters NFD can't split
+  const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[øæœßłđðþı]/g, (c) => FOLD[c]);
+  let searchIndex = null;
+  function searchPlaces(q) {
+    if (!searchIndex) searchIndex = TOWNS.map(([name, cc, lat, lng, pop, capital]) => [norm(name), name, cc, lat, lng, pop, capital]);
+    const nq = norm(q.trim());
+    if (nq.length < 2) return [];
+    const hits = [];
+    for (const e of searchIndex) {
+      const at = e[0].indexOf(nq);
+      if (at === 0 || (at > 0 && e[0][at - 1] === ' ')) hits.push([e, (e[0] === nq ? 4 : 0) + (at === 0 ? 2 : 0) + e[6], e[5]]);
+    }
+    hits.sort((a, b) => b[1] - a[1] || b[2] - a[2]);
+    return hits.slice(0, 8).map((h) => h[0]);
+  }
+
+  let suggestions = [];
+  let active = -1;
+  function hideSuggestions() {
+    $('place-suggest').hidden = true;
+    $('place-search').setAttribute('aria-expanded', 'false');
+    active = -1;
+  }
+
+  function showSuggestions() {
+    const box = $('place-suggest');
+    box.innerHTML = '';
+    suggestions.forEach(([, name, cc, lat, lng], i) => {
+      const li = document.createElement('li');
+      li.role = 'option';
+      li.id = 'place-opt-' + i;
+      li.className = i === active ? 'active' : '';
+      li.textContent = `${flag(cc)} ${name}`;
+      const small = document.createElement('small');
+      small.textContent = `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
+      li.appendChild(small);
+      li.onmousedown = (e) => { e.preventDefault(); choose(i); };
+      box.appendChild(li);
+    });
+    box.hidden = suggestions.length === 0;
+    $('place-search').setAttribute('aria-expanded', String(!box.hidden));
+    $('place-search').setAttribute('aria-activedescendant', active >= 0 ? 'place-opt-' + active : '');
+  }
+
+  function choose(i) {
+    const [, name, , lat, lng] = suggestions[i];
+    Object.assign(form, { name, lat, lng });
+    $('place-search').value = name;
+    hideSuggestions();
+    renderPlaceForm();
+    $('place-from').focus();
+  }
+
+  $('place-search').oninput = (e) => {
+    form.name = e.target.value;
+    suggestions = searchPlaces(e.target.value);
+    active = -1;
+    showSuggestions();
+  };
+  $('place-search').onkeydown = (e) => {
+    if ($('place-suggest').hidden) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      active = (active + (e.key === 'ArrowDown' ? 1 : -1) + suggestions.length) % suggestions.length;
+      showSuggestions();
+    } else if (e.key === 'Enter' && active >= 0) {
+      e.preventDefault();
+      choose(active);
+    } else if (e.key === 'Escape') {
+      e.preventDefault(); // close the list, not the dialog
+      hideSuggestions();
+    }
+  };
+  $('place-search').onblur = () => setTimeout(hideSuggestions, 100);
+
+  // Pick on map: hide the dialog, take one click on the map, come back.
+  $('place-pick').onclick = () => {
+    placesDlg.close();
+    document.body.classList.add('picking');
+    const banner = $('pick-banner');
+    banner.hidden = false;
+    const finish = (lngLat) => {
+      map.off('click', onClick);
+      window.removeEventListener('keydown', onKey);
+      document.body.classList.remove('picking');
+      banner.hidden = true;
+      if (lngLat) {
+        form.lat = lngLat.lat;
+        form.lng = lngLat.lng;
+        if (!$('place-search').value.trim()) {
+          const town = nearestTown(form.lat, form.lng, 30000);
+          if (town) $('place-search').value = form.name = town[0];
+        }
+      }
+      placesDlg.showModal();
+      renderPlaceForm();
+    };
+    const onClick = (e) => finish(e.lngLat);
+    const onKey = (e) => { if (e.key === 'Escape') finish(null); };
+    map.on('click', onClick);
+    window.addEventListener('keydown', onKey);
+  };
+
+  $('place-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const name = $('place-search').value.trim();
+    const date = $('place-from').value, to = $('place-to').value;
+    if (!name) return placeMsg('Give the place a name.', 'err');
+    if (form.lat == null) return placeMsg('Choose a location: search for a town or pick it on the map.', 'err');
+    if (!date) return placeMsg('Enter the date you were there (or the first day).', 'err');
+    if (to && to < date) return placeMsg('The end date is before the start date.', 'err');
+    const place = { name, lat: +form.lat.toFixed(5), lng: +form.lng.toFixed(5), date, ...(to && to !== date ? { to } : {}) };
+    const next = form.index >= 0 ? state.places.map((p, i) => (i === form.index ? place : p)) : [...state.places, place];
+    $('place-save').disabled = true;
+    try {
+      await savePlaces(next);
+      const verb = form.index >= 0 ? 'Saved' : 'Added';
+      resetPlaceForm();
+      placeMsg(`${verb} ${name}.`, 'ok');
+      renderPlaces();
+      rebuild(false);
+    } catch (err) {
+      placeMsg(err.message, 'err');
+    } finally {
+      $('place-save').disabled = false;
+    }
+  };
+  $('place-cancel').onclick = resetPlaceForm;
+  $('places-close').onclick = () => placesDlg.close();
+
+  const settingsReady = initSettings();
   map.on('load', async () => {
     addPinsLayer();
     if (location.hash === '#pins') setView('pins'); // direct link to the pins view
-    await restore();
+    await settingsReady;
+    await (state.server ? loadLibrary() : restore());
     loadImmich();
   });
 })();

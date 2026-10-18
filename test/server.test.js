@@ -135,6 +135,74 @@ test('server', async (t) => {
     assert.deepEqual(await settings({ url: 'http://evil.example' }), [400, { error: 'Enter the API key again for a different server.' }]);
   });
 
+  // u32 n | f64 lat × n | f64 lng × n | f64 t × n | u8 kind × n
+  const blob = (pts) => {
+    const n = pts.length;
+    const buf = Buffer.alloc(4 + n * 25);
+    buf.writeUInt32LE(n, 0);
+    pts.forEach(([lat, lng, t, kind], i) => {
+      buf.writeDoubleLE(lat, 4 + i * 8);
+      buf.writeDoubleLE(lng, 4 + (n + i) * 8);
+      buf.writeDoubleLE(t, 4 + (2 * n + i) * 8);
+      buf[4 + n * 24 + i] = kind;
+    });
+    return buf;
+  };
+  const upload = (name, body, type = 'application/octet-stream') =>
+    req('/api/sources', { method: 'POST', body, headers: { 'content-type': type, 'x-source-name': encodeURIComponent(name) } });
+
+  await t.test('stores uploaded location files', async () => {
+    assert.deepEqual(await (await req('/api/sources')).json(), { sources: [] });
+    const res = await upload('Timeline.json', blob([[52.2, 21.0, 1e12, 0], [52.3, 21.1, NaN, 1]]));
+    assert.equal(res.status, 201);
+    const { source } = await res.json();
+    assert.equal(source.name, 'Timeline.json');
+    assert.equal(source.points, 2);
+
+    const got = await req('/api/sources/' + source.id);
+    assert.equal(got.status, 200);
+    const back = Buffer.from(await got.arrayBuffer());
+    assert.deepEqual(back, blob([[52.2, 21.0, 1e12, 0], [52.3, 21.1, NaN, 1]]));
+
+    const again = await req('/api/sources/' + source.id, { headers: { 'if-none-match': got.headers.get('etag') } });
+    assert.equal(again.status, 304);
+  });
+
+  await t.test('same file name replaces the earlier upload', async () => {
+    await upload('Timeline.json', blob([[1, 2, 3, 0]]));
+    const { sources } = await (await req('/api/sources')).json();
+    assert.equal(sources.length, 1);
+    assert.equal(sources[0].points, 1);
+  });
+
+  await t.test('rejects malformed uploads and cross-site posts', async () => {
+    assert.equal((await upload('x.json', Buffer.from('not points'))).status, 400);
+    assert.equal((await upload('x.json', blob([[95, 0, 0, 0]]))).status, 400);
+    assert.equal((await upload('x.json', blob([[0, 0, 0, 9]]))).status, 400);
+    assert.equal((await upload('', blob([[1, 2, 3, 0]]))).status, 400);
+    assert.equal((await upload('x.json', blob([[1, 2, 3, 0]]), 'text/plain')).status, 415);
+    assert.equal((await req('/api/sources/00000000-0000-0000-0000-000000000000')).status, 404);
+  });
+
+  await t.test('deletes a file', async () => {
+    const { sources } = await (await req('/api/sources')).json();
+    const res = await req('/api/sources/' + sources[0].id, { method: 'DELETE' });
+    assert.deepEqual(await res.json(), { sources: [] });
+    assert.equal(fs.readdirSync(path.join(dataDir, 'sources')).length, 0);
+  });
+
+  await t.test('stores and validates places', async () => {
+    const put = (places) => req('/api/places', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ places }) });
+    const good = [{ name: ' San Marino ', lat: 43.9, lng: 12.4, date: '2015-07-20' }, { name: 'London', lat: 51.5, lng: -0.1, date: '2010-11-08', to: '2010-11-21' }];
+    assert.equal((await put(good)).status, 200);
+    assert.deepEqual((await (await req('/api/places')).json()).places[0], { name: 'San Marino', lat: 43.9, lng: 12.4, date: '2015-07-20' });
+    for (const bad of [[{ name: '', lat: 1, lng: 1, date: '2015-01-01' }], [{ name: 'X', lat: 99, lng: 1, date: '2015-01-01' }],
+      [{ name: 'X', lat: 1, lng: 1, date: '20.07.2015' }], [{ name: 'X', lat: 1, lng: 1, date: '2015-02-01', to: '2015-01-01' }]]) {
+      assert.equal((await put(bad)).status, 400, JSON.stringify(bad));
+    }
+    assert.equal((await (await req('/api/places')).json()).places.length, 2);
+  });
+
   await t.test('disconnect deletes the key', async () => {
     const res = await req('/api/settings/immich', { method: 'DELETE', headers: { 'content-type': 'application/json' } });
     assert.equal(res.status, 200);

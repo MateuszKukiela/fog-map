@@ -12,5 +12,6 @@
 !manifest.webmanifest
 !immich.mjs
 !server.mjs
+!library.mjs
 !vendor/maplibre-gl/
 !docker-entrypoint.sh

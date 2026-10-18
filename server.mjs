@@ -7,7 +7,7 @@
 // Env:
 //   IMMICH_URL, IMMICH_API_KEY   Optional starting values. Normally set in the page (⚙ Settings);
 //                                what's saved there (DATA_DIR/settings.json) wins.
-//   DATA_DIR=./data              Where settings are stored (mount a volume here in Docker).
+//   DATA_DIR=./data              Settings, uploaded location data and places (mount a volume here).
 //   BASIC_AUTH=user:password     Optional login. Set it if the page is reachable by anyone but you:
 //                                /api/immich returns where all your photos were taken.
 //   IMMICH_REFRESH_HOURS=6       How long Immich results are cached in memory.
@@ -17,7 +17,9 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { timingSafeEqual } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
 import { fetchImmichPhotos, checkImmich, normalizeUrl } from './immich.mjs';
+import { Library, validatePoints, validatePlaces, MAX_POINTS, maxBlobBytes } from './library.mjs';
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -47,17 +49,93 @@ async function saveSettings() {
 
 const publicSettings = () => ({ immich: { url: immich?.url || '', hasKey: !!immich, source: immich?.source || null } });
 
-async function readJson(req) {
-  let body = '';
+const httpError = (status, message) => Object.assign(new Error(message), { status });
+
+async function readBody(req, limit) {
+  const chunks = [];
+  let size = 0;
   for await (const chunk of req) {
-    body += chunk;
-    if (body.length > 10000) throw Object.assign(new Error('Request too large'), { status: 413 });
+    size += chunk.length;
+    if (size > limit) throw httpError(413, 'The upload is too large.');
+    chunks.push(chunk);
   }
+  return Buffer.concat(chunks);
+}
+
+async function readJson(req, limit = 10000) {
+  const body = await readBody(req, limit);
   try {
-    return JSON.parse(body || '{}');
+    return JSON.parse(body.toString('utf8') || '{}');
   } catch {
-    throw Object.assign(new Error('Invalid JSON'), { status: 400 });
+    throw httpError(400, 'Invalid JSON');
   }
+}
+
+// Writes need a content type that a plain HTML form on another site can't send (CSRF).
+function requireType(req, type) {
+  if (!(req.headers['content-type'] || '').startsWith(type)) throw httpError(415, `Expected ${type}`);
+}
+
+const library = new Library(DATA_DIR);
+const sendJson = (res, status, body) => send(res, status, 'application/json', JSON.stringify(body));
+
+// /api/sources[/<id>] and /api/places. Returns false when the path isn't one of them.
+async function handleLibrary(req, res, pathname) {
+  if (pathname === '/api/sources') {
+    if (req.method === 'GET') return sendJson(res, 200, { sources: library.sources });
+    if (req.method === 'POST') {
+      requireType(req, 'application/octet-stream');
+      let name = '';
+      try {
+        name = decodeURIComponent(req.headers['x-source-name'] || '').trim();
+      } catch {}
+      if (!name || name.length > 200) throw httpError(400, 'The file needs a name (up to 200 characters).');
+      const blob = await readBody(req, maxBlobBytes(MAX_POINTS));
+      const invalid = validatePoints(blob);
+      if (invalid) throw httpError(400, invalid);
+      return sendJson(res, 201, { source: await library.put(name, blob), sources: library.sources });
+    }
+    throw httpError(405, 'Method not allowed');
+  }
+
+  const m = /^\/api\/sources\/([0-9a-f-]{36})$/.exec(pathname);
+  if (m) {
+    const source = library.get(m[1]);
+    if (!source) throw httpError(404, 'No such file.');
+    if (req.method === 'GET') {
+      const etag = `"${source.updatedAt}"`;
+      const headers = { ...SECURITY_HEADERS, etag, 'cache-control': 'no-cache', 'content-type': 'application/octet-stream' };
+      if (req.headers['if-none-match'] === etag) {
+        res.writeHead(304, headers);
+        return res.end();
+      }
+      const gz = await readFile(library.blobPath(source.id));
+      if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
+        res.writeHead(200, { ...headers, 'content-encoding': 'gzip', vary: 'accept-encoding' });
+        return res.end(gz);
+      }
+      res.writeHead(200, { ...headers, vary: 'accept-encoding' });
+      return res.end(gunzipSync(gz));
+    }
+    if (req.method === 'DELETE') {
+      await library.remove(source.id);
+      return sendJson(res, 200, { sources: library.sources });
+    }
+    throw httpError(405, 'Method not allowed');
+  }
+
+  if (pathname === '/api/places') {
+    if (req.method === 'GET') return sendJson(res, 200, { places: library.places });
+    if (req.method === 'PUT') {
+      requireType(req, 'application/json');
+      const [places, error] = validatePlaces((await readJson(req, 2_000_000)).places);
+      if (error) throw httpError(400, error);
+      await library.setPlaces(places);
+      return sendJson(res, 200, { places });
+    }
+    throw httpError(405, 'Method not allowed');
+  }
+  return false;
 }
 
 // POST {url, apiKey?, test?}: check the connection, and save it unless test.
@@ -185,6 +263,16 @@ const server = http.createServer(async (req, res) => {
     return send(res, 405, 'application/json', '{"error":"Method not allowed"}');
   }
 
+  if (url.pathname === '/api/sources' || url.pathname.startsWith('/api/sources/') || url.pathname === '/api/places') {
+    try {
+      await handleLibrary(req, res, url.pathname);
+    } catch (err) {
+      if (!err.status) console.error('Library:', err);
+      sendJson(res, err.status || 500, { error: err.status ? err.message : 'Could not save. Check the server log.' });
+    }
+    return;
+  }
+
   if (url.pathname === '/api/immich') {
     if (!immich) return send(res, 404, 'application/json', '{"error":"Immich not configured"}');
     try {
@@ -205,6 +293,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 await loadSettings();
+await library.load();
 server.listen(PORT, () => {
   console.log(`fog-map on :${server.address().port}` + (immich ? `, Immich at ${immich.url}` : ', Immich not configured') + (expectedAuth ? ', login required' : ''));
   if (!expectedAuth) console.warn('No BASIC_AUTH set: anyone who can reach this port can see your photo locations and change settings.');

@@ -98,9 +98,9 @@
   .head-actions .icon-btn:hover { color: var(--text); background: rgba(255,255,255,.06); }
   .icon-btn[hidden] { display: none !important; }
 
-  dialog#settings { width: min(460px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line); border-radius: 14px;
+  dialog.dlg { width: min(460px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line); border-radius: 14px;
     background: #10152a; color: var(--text); box-shadow: 0 24px 80px rgba(0,0,0,.6); }
-  dialog#settings::backdrop { background: rgba(4, 6, 14, .6); backdrop-filter: blur(3px); }
+  dialog.dlg::backdrop { background: rgba(4, 6, 14, .6); backdrop-filter: blur(3px); }
   .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--line); }
   .dlg-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
   .dlg-section { padding: 18px 20px 20px; }
@@ -128,6 +128,39 @@
   .dlg-actions button:disabled { opacity: .55; cursor: progress; }
   .link-danger { font: inherit; font-size: 13px; background: none; border: 0; color: var(--error); cursor: pointer; padding: 8px 4px; }
   .link-danger:hover { text-decoration: underline; }
+
+  body:not(.server) .server-only, body.server .local-only { display: none !important; }
+  .row:has(> .server-only) { flex-wrap: wrap; }
+
+  .empty-list { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .places-list { list-style: none; margin: 0 0 18px; padding: 0; max-height: 220px; overflow: auto;
+    border: 1px solid var(--line); border-radius: 10px; }
+  .places-list:empty { display: none; }
+  .places-list li { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .places-list li:last-child { border-bottom: 0; }
+  .places-list li > div { flex: 1; min-width: 0; }
+  .places-list strong { display: block; font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .places-list span { color: var(--muted); font-size: 12px; }
+  .link { font: inherit; font-size: 13px; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 4px; }
+  .link:hover { text-decoration: underline; }
+  #place-form { border-top: 1px solid var(--line); padding-top: 14px; }
+  #place-form h3 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+  .field em { font-style: normal; font-weight: 400; color: var(--muted); }
+  .field input[type=date] { color-scheme: dark; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .combo { position: relative; }
+  .suggest { position: absolute; left: 0; right: 0; top: 100%; z-index: 5; margin: 4px 0 0; padding: 4px; list-style: none;
+    background: #0a0e1d; border: 1px solid rgba(255,255,255,.14); border-radius: 8px; box-shadow: 0 12px 30px rgba(0,0,0,.5); }
+  .suggest li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 9px; border-radius: 6px; cursor: pointer; font-size: 13.5px; }
+  .suggest li small { color: var(--muted); font-size: 11.5px; }
+  .suggest li:hover, .suggest li.active { background: rgba(124,196,255,.14); }
+  .coords { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: -4px 0 14px; font-size: 12.5px; color: var(--muted); }
+  button.small { padding: 5px 10px; font-size: 12.5px; border-radius: 7px; }
+  .pick-banner { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 6; background: var(--panel);
+    border: 1px solid var(--accent); border-radius: 999px; padding: 8px 16px; font-size: 13.5px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+  .pick-banner kbd { font: inherit; font-size: 12px; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; }
+  body.picking #map .maplibregl-canvas { cursor: crosshair; }
+  body.picking .panel { opacity: .35; pointer-events: none; }
 
   .dropzone { position: fixed; inset: 0; z-index: 10; display: none; place-items: center;
     background: rgba(8, 11, 24, .7); border: 3px dashed var(--accent); font-size: 22px; }
@@ -161,6 +194,7 @@
     <div class="row">
       <button class="primary" id="pick">Choose files</button>
     </div>
+    <div class="row server-only"><button class="ghost" id="open-places-empty">Add places by hand</button></div>
     <details>
       <summary>How to get your data</summary>
       <h3>Android</h3>
@@ -198,19 +232,58 @@
       <input type="range" id="opacity" min="40" max="100" value="88"></label>
     <div class="row">
       <button class="ghost" id="add">Add files</button>
+      <button class="ghost server-only" id="open-places">Places</button>
       <button class="ghost" id="clear">Clear</button>
     </div>
     <ul id="files"></ul>
   </div>
 
   <div id="status"></div>
-  <p class="note">Files are read in this browser and saved only here. Nothing is uploaded.</p>
+  <p class="note local-only">Files are read in this browser and saved only here. Nothing is uploaded.</p>
+  <p class="note server-only">Your files and places are stored on this server, so every device shows the same map.</p>
   <input type="file" id="file" accept=".json,application/json" multiple hidden>
 </aside>
 
 <div class="dropzone">Drop to lift the fog</div>
 
-<dialog id="settings" aria-labelledby="settings-title">
+<div id="pick-banner" class="pick-banner" role="status" hidden>Click the map where the place is · <kbd>Esc</kbd> cancels</div>
+
+<dialog id="places-dlg" class="dlg" aria-labelledby="places-title">
+  <header class="dlg-head">
+    <h2 id="places-title">Places</h2>
+    <button type="button" class="icon-btn" id="places-close" aria-label="Close">✕</button>
+  </header>
+  <section class="dlg-section">
+    <p class="hint">Trips that aren't in your Timeline or photos, like holidays from before your data starts. They always count.</p>
+    <p id="places-empty" class="empty-list">No places yet.</p>
+    <ul id="places-list" class="places-list"></ul>
+    <form id="place-form" novalidate>
+      <h3 id="place-form-title">Add a place</h3>
+      <label class="field combo">
+        <span>Place</span>
+        <input id="place-search" placeholder="Search a city or town, or type a name" autocomplete="off" spellcheck="false"
+          role="combobox" aria-autocomplete="list" aria-controls="place-suggest" aria-expanded="false">
+        <ul id="place-suggest" class="suggest" role="listbox" hidden></ul>
+      </label>
+      <div class="coords">
+        <span id="place-coords"></span>
+        <button type="button" class="ghost small" id="place-pick">Pick on map</button>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>From</span><input type="date" id="place-from" required></label>
+        <label class="field"><span>To <em>(optional)</em></span><input type="date" id="place-to"></label>
+      </div>
+      <div id="place-msg" class="msg" role="status" aria-live="polite"></div>
+      <div class="dlg-actions">
+        <button type="button" class="ghost" id="place-cancel" hidden>Cancel</button>
+        <span class="spacer"></span>
+        <button type="submit" class="primary" id="place-save">Add place</button>
+      </div>
+    </form>
+  </section>
+</dialog>
+
+<dialog id="settings" class="dlg" aria-labelledby="settings-title">
   <form id="immich-form" novalidate>
     <header class="dlg-head">
       <h2 id="settings-title">Settings</h2>
