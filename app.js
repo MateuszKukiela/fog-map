@@ -1026,7 +1026,7 @@
     $('ot-url').value = url;
     $('ot-user').value = c.user;
     // OwnTracks imports this config when the link is opened on the phone (mode 3 = HTTP); the password is typed in the app.
-    const cfg = { _type: 'configuration', mode: 3, url, auth: true, username: c.user };
+    const cfg = { _type: 'configuration', mode: 3, url, auth: true, usePassword: true, username: c.user };
     $('ot-setup').href = 'owntracks:///config?inline=' + encodeURIComponent(btoa(JSON.stringify(cfg)));
   }
 

@@ -95,7 +95,7 @@ then type the password in the app. Turn on **Allow external configuration** in O
 
 1. Install OwnTracks from the App Store or Google Play.
 2. Open its settings: **Mode** → `HTTP`, **URL** → `https://your-fog-map/api/owntracks`.
-3. Turn on **Authentication** and enter your `BASIC_AUTH` user and password (or the `OWNTRACKS_AUTH` ones, below).
+3. Turn on **Authentication** and the switch next to **Password** (without it the app sends no password), and enter your `BASIC_AUTH` user and password (or the `OWNTRACKS_AUTH` ones, below).
 4. Pick a monitoring mode: **Significant** is easy on the battery but coarse; **Move** records every street.
 
 Points collect in a source called **OwnTracks** and appear the next time you open the map.
