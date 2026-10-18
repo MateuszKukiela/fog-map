@@ -18,7 +18,7 @@ import http from 'node:http';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual, createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { fetchImmichPhotos, checkImmich, normalizeUrl } from './immich.mjs';
 import { Library, validatePoints, validatePlaces, MAX_POINTS, maxBlobBytes } from './library.mjs';
@@ -189,6 +189,13 @@ const STATIC = {
       'icon.svg', 'manifest.webmanifest', 'vendor/maplibre-gl/maplibre-gl.js', 'vendor/maplibre-gl/maplibre-gl.css'].map((f) => ['/' + f, f]),
   ),
 };
+// iOS Safari kept running old scripts after an update even with no-cache, so index.html points at
+// versioned URLs (a hash of the app files) and every release loads fresh ones.
+const assetHash = createHash('sha256');
+for (const f of new Set(Object.values(STATIC))) assetHash.update(await readFile(path.join(ROOT, f)));
+const ASSET_VERSION = assetHash.digest('hex').slice(0, 10);
+const versionAssets = (html) => html.toString().replace(/((?:src|href)=")([\w./-]+\.(?:js|css))"/g, `$1$2?v=${ASSET_VERSION}"`);
+
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -327,7 +334,8 @@ const server = http.createServer(async (req, res) => {
   const file = STATIC[url.pathname];
   if (!file || req.method !== 'GET') return send(res, 404, 'text/plain', 'Not found');
   try {
-    send(res, 200, TYPES[path.extname(file)], await readFile(path.join(ROOT, file)));
+    const body = await readFile(path.join(ROOT, file));
+    send(res, 200, TYPES[path.extname(file)], file === 'index.html' ? versionAssets(body) : body);
   } catch (err) {
     send(res, 500, 'text/plain', 'Server error');
   }

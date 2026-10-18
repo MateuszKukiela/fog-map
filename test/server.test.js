@@ -85,6 +85,11 @@ test('server', async (t) => {
     for (const p of ['/index.html', '/app.js', '/icon.svg', '/manifest.webmanifest', '/vendor/maplibre-gl/maplibre-gl.js', '/vendor/maplibre-gl/maplibre-gl.css']) {
       assert.equal((await req(p)).status, 200, p);
     }
+    const html = await (await req('/')).text();
+    const versioned = /src="app\.js\?v=([0-9a-f]{10})"/.exec(html);
+    assert.ok(versioned, 'scripts get a versioned URL');
+    assert.match(html, /href="vendor\/maplibre-gl\/maplibre-gl\.css\?v=/);
+    assert.equal((await req('/app.js?v=' + versioned[1])).status, 200);
     for (const p of ['/Timeline.json', '/server.mjs', '/package.json', '/../server.mjs', '/data/settings.json']) {
       assert.equal((await req(p)).status, 404, p);
     }

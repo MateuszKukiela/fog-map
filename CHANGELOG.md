@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org).
 
+## [1.4.1] - 2026-10-18
+
+### Fixed
+
+- After an update, iPhones kept running the old scripts with the new page (empty OwnTracks fields,
+  no pin dates). Script and style URLs now carry a version, so every release loads fresh copies.
+
 ## [1.4.0] - 2026-10-18
 
 ### Added
@@ -83,6 +90,7 @@ First public release.
 - Noise cleanup: in-flight points, geolocation teleports, one-off countries, airport layovers.
 - Docker image for linux/amd64 and linux/arm64 with health check, optional basic auth and SBOM/provenance attestations.
 
+[1.4.1]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.4.1
 [1.4.0]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.4.0
 [1.3.3]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.3.3
 [1.3.2]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.3.2
