@@ -89,6 +89,9 @@ to the server in a compact form (a 43 MB `Timeline.json` becomes a few MB), so e
 [OwnTracks](https://owntracks.org) is a free, open-source app for iPhone and Android that sends your
 location straight to Fog Map in the background, so new trips show up without exporting anything.
 
+The easy way: open Fog Map on your phone, **⚙ → Phone (OwnTracks) → Set up OwnTracks on this phone**,
+then type the password in the app. By hand:
+
 1. Install OwnTracks from the App Store or Google Play.
 2. Open its settings: **Mode** → `HTTP`, **URL** → `https://your-fog-map/api/owntracks`.
 3. Turn on **Authentication** and enter your `BASIC_AUTH` user and password (or the `OWNTRACKS_AUTH` ones, below).

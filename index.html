@@ -124,6 +124,7 @@
   .dlg-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .dlg-actions .spacer { flex: 1; }
   .dlg-actions button.primary { width: auto; padding: 8px 16px; }
+  a.btn-link { background: var(--accent); color: #07112a; border-radius: 9px; padding: 8px 16px; font-weight: 600; text-decoration: none; }
   .dlg-actions button.ghost { padding: 8px 12px; }
   .dlg-actions button:disabled { opacity: .55; cursor: progress; }
   .link-danger { font: inherit; font-size: 13px; background: none; border: 0; color: var(--error); cursor: pointer; padding: 8px 4px; }
@@ -312,6 +313,31 @@
         <span class="spacer"></span>
         <button type="button" class="ghost" id="immich-test">Test connection</button>
         <button type="submit" class="primary" id="immich-save">Save</button>
+      </div>
+    </section>
+    <section class="dlg-section">
+      <div class="section-head">
+        <h3>Phone (OwnTracks)</h3>
+        <span id="ot-state" class="conn">Off</span>
+      </div>
+      <p class="hint"><a href="https://owntracks.org" target="_blank" rel="noopener">OwnTracks</a> is a free, open-source app for
+        iPhone and Android that sends your location here in the background, so new trips appear without exports.</p>
+      <div id="ot-off" class="msg err" hidden>Set <code>OWNTRACKS_AUTH=user:password</code> (or <code>BASIC_AUTH</code>) on the server to turn this on.</div>
+      <div id="ot-on">
+        <label class="field">
+          <span>URL</span>
+          <input type="text" id="ot-url" readonly spellcheck="false">
+        </label>
+        <label class="field">
+          <span>User</span>
+          <input type="text" id="ot-user" readonly spellcheck="false">
+          <small>Password: the one in <code>OWNTRACKS_AUTH</code> on the server. In OwnTracks, set Mode to HTTP, enter the URL,
+            turn on Authentication with this user and password, then pick Significant (light on battery) or Move (every street) on the map screen.</small>
+        </label>
+        <div class="dlg-actions">
+          <span class="spacer"></span>
+          <a class="primary btn-link" id="ot-setup">Set up OwnTracks on this phone</a>
+        </div>
       </div>
     </section>
   </form>

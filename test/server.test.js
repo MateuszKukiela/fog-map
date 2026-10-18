@@ -91,7 +91,10 @@ test('server', async (t) => {
   });
 
   await t.test('starts unconfigured', async () => {
-    assert.deepEqual(await (await req('/api/settings')).json(), { immich: { url: '', hasKey: false, source: null } });
+    assert.deepEqual(await (await req('/api/settings')).json(), {
+      immich: { url: '', hasKey: false, source: null },
+      owntracks: { enabled: true, user: 'phone', points: 0, lastAt: null },
+    });
     assert.equal((await req('/api/immich')).status, 404);
   });
 
@@ -223,6 +226,9 @@ test('server', async (t) => {
     assert.deepEqual(back.subarray(0, 4 + 8), blob([[52.2, 21.0, 1700000000000, 0], [0, 0, 0, 0], [0, 0, 0, 0]]).subarray(0, 4 + 8));
     assert.equal(back.readDoubleLE(4 + 2 * 3 * 8), 1700000000000);
     assert.equal(back.length, 4 + 3 * 25);
+    const { owntracks } = await (await req('/api/settings')).json();
+    assert.equal(owntracks.points, 3);
+    assert.ok(!JSON.stringify(owntracks).includes('pw2'));
   });
 
   await t.test('disconnect deletes the key', async () => {

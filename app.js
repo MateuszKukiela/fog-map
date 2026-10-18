@@ -985,13 +985,14 @@
 
   const dialog = $('settings');
   let immichCfg = null;
+  let ownTracksCfg = null;
 
   async function initSettings() {
     if (location.protocol === 'file:') return;
     try {
       const res = await fetch('api/settings');
       if (!res.ok) return;
-      immichCfg = (await res.json()).immich;
+      ({ immich: immichCfg, owntracks: ownTracksCfg } = await res.json());
     } catch {
       return;
     }
@@ -1012,6 +1013,21 @@
     $('immich-key').placeholder = c.hasKey ? 'Saved · leave empty to keep it' : 'Paste your API key';
     $('immich-disconnect').hidden = !c.hasKey;
     $('immich-sync').hidden = !c.hasKey;
+  }
+
+  function renderOwnTracks() {
+    const c = ownTracksCfg;
+    const el = $('ot-state');
+    el.textContent = !c.enabled ? 'Off' : c.points ? `${c.points.toLocaleString()} points · last ${new Date(c.lastAt).toLocaleString()}` : 'Waiting for the first point';
+    el.classList.toggle('on', c.points > 0);
+    $('ot-off').hidden = c.enabled;
+    $('ot-on').hidden = !c.enabled;
+    const url = new URL('api/owntracks', location.href).href;
+    $('ot-url').value = url;
+    $('ot-user').value = c.user;
+    // OwnTracks imports this config when the link is opened on the phone (mode 3 = HTTP); the password is typed in the app.
+    const cfg = { _type: 'configuration', mode: 3, url, auth: true, username: c.user };
+    $('ot-setup').href = 'owntracks:///config?inline=' + encodeURIComponent(btoa(JSON.stringify(cfg)));
   }
 
   function immichMsg(text, kind) {
@@ -1058,7 +1074,13 @@
   $('open-settings').onclick = () => {
     immichMsg('');
     renderImmich();
+    renderOwnTracks();
     dialog.showModal();
+    // Refresh the phone status, it changes as points arrive.
+    fetch('api/settings').then((r) => r.json()).then((s) => {
+      ownTracksCfg = s.owntracks;
+      renderOwnTracks();
+    }).catch(() => {});
   };
   $('settings-close').onclick = () => dialog.close();
   $('immich-form').onsubmit = (e) => {

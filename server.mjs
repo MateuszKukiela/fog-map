@@ -49,7 +49,19 @@ async function saveSettings() {
   await writeFile(SETTINGS_FILE, JSON.stringify(data, null, 2), { mode: 0o600 });
 }
 
-const publicSettings = () => ({ immich: { url: immich?.url || '', hasKey: !!immich, source: immich?.source || null } });
+const OWNTRACKS_SOURCE = 'OwnTracks';
+const publicSettings = () => {
+  const src = library.sources.find((s) => s.name === OWNTRACKS_SOURCE);
+  return {
+    immich: { url: immich?.url || '', hasKey: !!immich, source: immich?.source || null },
+    owntracks: {
+      enabled: !!(expectedOwnTracks || expectedAuth),
+      user: (OWNTRACKS_AUTH || BASIC_AUTH || '').split(':')[0],
+      points: src?.points || 0,
+      lastAt: src?.updatedAt || null,
+    },
+  };
+};
 
 const httpError = (status, message) => Object.assign(new Error(message), { status });
 
@@ -200,7 +212,7 @@ function authorized(req, expected) {
 }
 
 // OwnTracks HTTP mode: one JSON message per POST; location messages become path points
-// in the "OwnTracks" source. The app expects a JSON array back.
+// in the OwnTracks source. The app expects a JSON array back.
 async function ownTracks(req) {
   if (req.method !== 'POST') throw httpError(405, 'Method not allowed');
   // A forward-auth proxy usually lets this path through, so never take points without a password.
@@ -210,7 +222,7 @@ async function ownTracks(req) {
   if (msg._type !== 'location') return;
   const lat = Number(msg.lat), lng = Number(msg.lon), t = Number(msg.tst) * 1000;
   if (!(lat >= -90 && lat <= 90) || !(lng >= -180 && lng <= 180) || !Number.isFinite(t)) throw httpError(400, 'Invalid location.');
-  await library.append('OwnTracks', [[lat, lng, t]]);
+  await library.append(OWNTRACKS_SOURCE, [[lat, lng, t]]);
 }
 
 let cache = null; // { at, body }
