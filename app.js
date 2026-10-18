@@ -147,6 +147,7 @@
       }
     }
     fog.setData(prepare(data, segments, include));
+    state.include = include;
     const cities = countCities(include);
     renderStats(stats(data, segments, include), countCountries(include), countTerritories(include), cities);
     setPins(cities, placePins(include));
@@ -940,16 +941,54 @@
     });
     map.on('click', 'pins', (e) => {
       const p = e.features[0].properties;
-      new maplibregl.Popup({ offset: [0, -30] }).setLngLat(e.features[0].geometry.coordinates).setText(`${flag(p.cc)} ${p.name}`).addTo(map);
+      const [lng, lat] = e.features[0].geometry.coordinates;
+      const box = document.createElement('div');
+      const title = document.createElement('strong');
+      title.textContent = `${flag(p.cc)} ${p.name}`;
+      box.appendChild(title);
+      for (const line of tripLines(p.kind === 'city' ? (i) => state.city[i] === p.ci : (i) => state.city[i] < 0 && distanceM(lat, lng, state.data.lat[i], state.data.lng[i]) < PLACE_MERGE_M)) {
+        const div = document.createElement('div');
+        div.className = 'pin-date';
+        div.textContent = line;
+        box.appendChild(div);
+      }
+      new maplibregl.Popup({ offset: [0, -30] }).setLngLat([lng, lat]).setDOMContent(box).addTo(map);
     });
     map.on('mouseenter', 'pins', () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', 'pins', () => { map.getCanvas().style.cursor = ''; });
   }
 
+  const TRIP_GAP_DAYS = 2; // days this far apart are one trip
+  const MAX_TRIPS = 6;
+
+  // When you were at a pin: days with points that pass `at(i)`, grouped into trips, newest first.
+  function tripLines(at) {
+    const { data, include, airport } = state;
+    const days = new Set();
+    for (let i = 0; i < data.lat.length; i++) {
+      if (!include[i] || airport[i] || !Number.isFinite(data.t[i]) || !at(i)) continue;
+      const d = new Date(data.t[i]);
+      days.add(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+    }
+    const trips = [];
+    for (const day of [...days].sort((a, b) => a - b)) {
+      const last = trips[trips.length - 1];
+      if (last && day - last[1] <= TRIP_GAP_DAYS) last[1] = day;
+      else trips.push([day, day]);
+    }
+    const fmtDay = (day) => new Date(day * 86400000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const lines = trips.reverse().slice(0, MAX_TRIPS).map(([a, b]) => (a === b ? fmtDay(a) : `${fmtDay(a)} – ${fmtDay(b)}`));
+    if (trips.length > MAX_TRIPS) lines.push(`+ ${trips.length - MAX_TRIPS} earlier trips`);
+    return lines;
+  }
+
   function setPins(cities, places) {
     const src = map.getSource('pins');
     if (!src) return;
-    const feature = (kind) => ([name, cc, lat, lng]) => ({ type: 'Feature', properties: { kind, name, cc, lat }, geometry: { type: 'Point', coordinates: [lng, lat] } });
+    const feature = (kind) => (c) => {
+      const [name, cc, lat, lng] = c;
+      return { type: 'Feature', properties: { kind, name, cc, lat, ci: kind === 'city' ? CITIES.indexOf(c) : -1 }, geometry: { type: 'Point', coordinates: [lng, lat] } };
+    };
     src.setData({ type: 'FeatureCollection', features: [...cities.map(feature('city')), ...places.map(feature('place'))] });
   }
 

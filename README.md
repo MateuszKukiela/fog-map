@@ -23,7 +23,7 @@ the only outside requests are map tiles.
 ## Features
 
 - **Fog of war** — your GPS tracks, visits and photos reveal the map; adjustable reveal radius and fog density.
-- **Wall-map pins** — a red push-pin on every city and every place you actually stopped at (not the ones you just drove through).
+- **Wall-map pins** — a red push-pin on every city and every place you actually stopped at (not the ones you just drove through). Tap a pin to see when you were there.
 - **Immich integration** — enter your server URL and API key in the settings; geotagged photos appear automatically and stay in sync.
 - **Google Timeline** — reads the on-device Timeline export from Android and iPhone, plus legacy Takeout `Records.json` and Semantic Location History.
 - **Counters** — countries with flags, cities over 100k people, [Travelers' Century Club](https://travelerscenturyclub.org) territories (n / 330) and days abroad per year. Your home country is detected automatically.
