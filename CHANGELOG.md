@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org).
 
+## [1.3.1] - 2026-10-18
+
+### Fixed
+
+- The OwnTracks setup button explains that OwnTracks needs **Allow external configuration** turned on
+  first; without it the app says "URI or file configuration not allowed".
+
 ## [1.3.0] - 2026-10-18
 
 ### Added
@@ -56,6 +63,7 @@ First public release.
 - Noise cleanup: in-flight points, geolocation teleports, one-off countries, airport layovers.
 - Docker image for linux/amd64 and linux/arm64 with health check, optional basic auth and SBOM/provenance attestations.
 
+[1.3.1]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.3.1
 [1.3.0]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.3.0
 [1.2.0]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.2.0
 [1.1.0]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.1.0
