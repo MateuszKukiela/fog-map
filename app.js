@@ -220,12 +220,17 @@
     return out;
   }
 
+  // Unrecognized states count as the country they're internationally part of (TCC still lists them separately).
+  const PART_OF = { 'Turkish Republic of Northern Cyprus': 'CY', Somaliland: 'SO' };
+  const countryOf = COUNTRIES.map((c, k) => (PART_OF[c.n] ? COUNTRIES.findIndex((x) => x.c === PART_OF[c.n]) : k));
+
   function countCountries(include) {
     const { data, countryIdx } = state;
     const weight = new Map();
     for (let i = 0; i < countryIdx.length; i++) {
       if ((include && !include[i]) || countryIdx[i] < 0 || state.airport[i]) continue;
-      weight.set(countryIdx[i], (weight.get(countryIdx[i]) || 0) + (data.kind[i] === 0 ? 1 : MIN_COUNTRY_WEIGHT));
+      const k = countryOf[countryIdx[i]];
+      weight.set(k, (weight.get(k) || 0) + (data.kind[i] === 0 ? 1 : MIN_COUNTRY_WEIGHT));
     }
     return Array.from(weight).filter(([, w]) => w >= MIN_COUNTRY_WEIGHT).sort((a, b) => b[1] - a[1]).map(([k]) => COUNTRIES[k]);
   }

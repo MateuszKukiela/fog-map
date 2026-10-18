@@ -164,6 +164,7 @@ Location data is noisy, so a few rules decide what counts:
 - **Teleports** — a small burst of points far away with the same place before and after, reached faster than any plane, is a geolocation glitch and is dropped.
 - **One-off countries** — a foreign country counts only if you spent an hour there that day or it shows up again within a week.
 - **Airports** — layovers don't count as visiting a country or a city (they do count for the Century Club, whose rules include transit stops).
+- **Unrecognized states** — Northern Cyprus counts as Cyprus and Somaliland as Somalia (the Century Club still lists them separately).
 - **Days abroad** — short gaps without data inside a trip (up to 5 days, with no sign of being home) are filled in.
 - **Pins** — cities with 100k+ people get a pin when you've been there; smaller places need a real stop: 45+ minutes, or 15+ minutes with a few photos.
 
