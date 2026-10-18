@@ -3,6 +3,12 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org).
 
+## [1.4.2] - 2026-10-18
+
+### Fixed
+
+- Pin popup titles were light text on a white background; popups now use dark text.
+
 ## [1.4.1] - 2026-10-18
 
 ### Fixed
@@ -90,6 +96,7 @@ First public release.
 - Noise cleanup: in-flight points, geolocation teleports, one-off countries, airport layovers.
 - Docker image for linux/amd64 and linux/arm64 with health check, optional basic auth and SBOM/provenance attestations.
 
+[1.4.2]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.4.2
 [1.4.1]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.4.1
 [1.4.0]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.4.0
 [1.3.3]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.3.3
