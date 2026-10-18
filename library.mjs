@@ -7,7 +7,7 @@
 import { readFile, writeFile, rename, rm, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { gzip } from 'node:zlib';
+import { gzip, gunzipSync } from 'node:zlib';
 import { promisify } from 'node:util';
 
 const gzipAsync = promisify(gzip);
@@ -117,6 +117,27 @@ export class Library {
     this.sources = [...this.sources.filter((s) => s.id !== entry.id), entry];
     await writeAtomic(this.indexFile, JSON.stringify(this.sources, null, 2));
     return entry;
+  }
+
+  // Adds [lat, lng, timeMs] path points to the source `name`, creating it if needed.
+  // Calls are queued so concurrent appends can't drop each other's points.
+  // shortcut: rewrites the whole blob each time; fine at phone ping rates, batch writes if a source nears millions of points.
+  append(name, pts) {
+    const run = async () => {
+      const old = this.sources.find((s) => s.name === name);
+      const prev = old ? gunzipSync(await readFile(this.blobPath(old.id))) : Buffer.alloc(4);
+      const m = prev.readUInt32LE(0), n = m + pts.length;
+      if (n > MAX_POINTS) throw Object.assign(new Error(`Too many points (max ${MAX_POINTS.toLocaleString('en')}).`), { status: 413 });
+      const buf = Buffer.alloc(maxBlobBytes(n));
+      buf.writeUInt32LE(n, 0);
+      for (let col = 0; col < 3; col++) {
+        prev.copy(buf, 4 + col * n * 8, 4 + col * m * 8, 4 + (col + 1) * m * 8);
+        pts.forEach((p, i) => buf.writeDoubleLE(p[col], 4 + (col * n + m + i) * 8));
+      }
+      prev.copy(buf, 4 + n * 24, 4 + m * 24); // kinds; new points stay 0 = path
+      return this.put(name, buf);
+    };
+    return (this.queue = (this.queue || Promise.resolve()).catch(() => {}).then(run));
   }
 
   async remove(id) {

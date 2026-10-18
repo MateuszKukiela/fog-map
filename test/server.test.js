@@ -54,7 +54,7 @@ test('server', async (t) => {
   const immich = await startImmich();
   const immichUrl = `http://127.0.0.1:${immich.address().port}`;
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fog-map-'));
-  const { child, base } = await startApp({ DATA_DIR: dataDir, BASIC_AUTH: 'me:pw' });
+  const { child, base } = await startApp({ DATA_DIR: dataDir, BASIC_AUTH: 'me:pw', OWNTRACKS_AUTH: 'phone:pw2' });
   t.after(() => {
     child.kill();
     immich.close();
@@ -201,6 +201,28 @@ test('server', async (t) => {
       assert.equal((await put(bad)).status, 400, JSON.stringify(bad));
     }
     assert.equal((await (await req('/api/places')).json()).places.length, 2);
+  });
+
+  await t.test('OwnTracks appends phone locations to a source', async () => {
+    const PHONE = 'Basic ' + Buffer.from('phone:pw2').toString('base64');
+    const post = (msg, authorization = PHONE) => fetch(base + '/api/owntracks', {
+      method: 'POST', headers: { authorization, 'content-type': 'application/json' }, body: JSON.stringify(msg),
+    });
+    assert.equal((await post({ _type: 'location', lat: 1, lon: 2, tst: 1 }, AUTH)).status, 401);
+    assert.equal((await fetch(base + '/', { headers: { authorization: PHONE } })).status, 401);
+    const first = await post({ _type: 'location', lat: 52.2, lon: 21.0, tst: 1700000000, acc: 5 });
+    assert.equal(first.status, 200);
+    assert.deepEqual(await first.json(), []);
+    await Promise.all([post({ _type: 'location', lat: 52.3, lon: 21.1, tst: 1700000060 }), post({ _type: 'location', lat: 52.4, lon: 21.2, tst: 1700000120 })]);
+    assert.equal((await post({ _type: 'lwt', tst: 1 })).status, 200);
+    assert.equal((await post({ _type: 'location', lat: 95, lon: 0, tst: 1 })).status, 400);
+    const { sources } = await (await req('/api/sources')).json();
+    const src = sources.find((s) => s.name === 'OwnTracks');
+    assert.equal(src.points, 3);
+    const back = Buffer.from(await (await req('/api/sources/' + src.id)).arrayBuffer());
+    assert.deepEqual(back.subarray(0, 4 + 8), blob([[52.2, 21.0, 1700000000000, 0], [0, 0, 0, 0], [0, 0, 0, 0]]).subarray(0, 4 + 8));
+    assert.equal(back.readDoubleLE(4 + 2 * 3 * 8), 1700000000000);
+    assert.equal(back.length, 4 + 3 * 25);
   });
 
   await t.test('disconnect deletes the key', async () => {

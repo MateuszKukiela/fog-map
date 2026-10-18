@@ -10,6 +10,8 @@
 //   DATA_DIR=./data              Settings, uploaded location data and places (mount a volume here).
 //   BASIC_AUTH=user:password     Optional login. Set it if the page is reachable by anyone but you:
 //                                /api/immich returns where all your photos were taken.
+//   OWNTRACKS_AUTH=user:password Optional separate login for /api/owntracks only (the phone app), so the
+//                                endpoint can skip a forward-auth proxy. Without it, BASIC_AUTH applies.
 //   IMMICH_REFRESH_HOURS=6       How long Immich results are cached in memory.
 //   PORT=8080
 import http from 'node:http';
@@ -23,7 +25,7 @@ import { Library, validatePoints, validatePlaces, MAX_POINTS, maxBlobBytes } fro
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const { IMMICH_URL, IMMICH_API_KEY, BASIC_AUTH } = process.env;
+const { IMMICH_URL, IMMICH_API_KEY, BASIC_AUTH, OWNTRACKS_AUTH } = process.env;
 const REFRESH_MS = (Number(process.env.IMMICH_REFRESH_HOURS) || 6) * 3600 * 1000;
 const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, 'data');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
@@ -188,11 +190,27 @@ const SECURITY_HEADERS = {
   'x-frame-options': 'DENY',
 };
 
-const expectedAuth = BASIC_AUTH ? Buffer.from('Basic ' + Buffer.from(BASIC_AUTH).toString('base64')) : null;
-function authorized(req) {
-  if (!expectedAuth) return true;
+const basic = (cred) => cred ? Buffer.from('Basic ' + Buffer.from(cred).toString('base64')) : null;
+const expectedAuth = basic(BASIC_AUTH);
+const expectedOwnTracks = basic(OWNTRACKS_AUTH);
+function authorized(req, expected) {
+  if (!expected) return true;
   const got = Buffer.from(req.headers.authorization || '');
-  return got.length === expectedAuth.length && timingSafeEqual(got, expectedAuth);
+  return got.length === expected.length && timingSafeEqual(got, expected);
+}
+
+// OwnTracks HTTP mode: one JSON message per POST; location messages become path points
+// in the "OwnTracks" source. The app expects a JSON array back.
+async function ownTracks(req) {
+  if (req.method !== 'POST') throw httpError(405, 'Method not allowed');
+  // A forward-auth proxy usually lets this path through, so never take points without a password.
+  if (!expectedOwnTracks && !expectedAuth) throw httpError(403, 'Set OWNTRACKS_AUTH or BASIC_AUTH to accept phone locations.');
+  requireType(req, 'application/json');
+  const msg = await readJson(req, 100_000);
+  if (msg._type !== 'location') return;
+  const lat = Number(msg.lat), lng = Number(msg.lon), t = Number(msg.tst) * 1000;
+  if (!(lat >= -90 && lat <= 90) || !(lng >= -180 && lng <= 180) || !Number.isFinite(t)) throw httpError(400, 'Invalid location.');
+  await library.append('OwnTracks', [[lat, lng, t]]);
 }
 
 let cache = null; // { at, body }
@@ -230,11 +248,22 @@ function send(res, status, type, body) {
 const server = http.createServer(async (req, res) => {
   // Health check for Docker/orchestrators: no login, no data.
   if (req.url === '/healthz') return send(res, 200, 'text/plain', 'ok');
-  if (!authorized(req)) {
+  const isOwnTracks = req.url.split('?')[0] === '/api/owntracks';
+  if (!authorized(req, isOwnTracks && expectedOwnTracks ? expectedOwnTracks : expectedAuth)) {
     res.writeHead(401, { ...SECURITY_HEADERS, 'www-authenticate': 'Basic realm="fog-map"' });
     return res.end();
   }
   const url = new URL(req.url, 'http://localhost');
+
+  if (isOwnTracks) {
+    try {
+      await ownTracks(req);
+      return sendJson(res, 200, []);
+    } catch (err) {
+      if (!err.status) console.error('OwnTracks:', err);
+      return sendJson(res, err.status || 500, { error: err.status ? err.message : 'Could not save.' });
+    }
+  }
 
   if (url.pathname === '/api/settings' && req.method === 'GET') {
     return send(res, 200, 'application/json', JSON.stringify(publicSettings()));

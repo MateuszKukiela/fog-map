@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org).
 
+## [1.2.0] - 2026-10-18
+
+### Added
+
+- OwnTracks support: the phone app posts your location to `/api/owntracks` and it lands in an
+  "OwnTracks" source, so the map stays current without Timeline exports. `OWNTRACKS_AUTH` sets a
+  separate login for that endpoint.
+
 ## [1.1.0] - 2026-10-18
 
 ### Added
@@ -41,6 +49,7 @@ First public release.
 - Noise cleanup: in-flight points, geolocation teleports, one-off countries, airport layovers.
 - Docker image for linux/amd64 and linux/arm64 with health check, optional basic auth and SBOM/provenance attestations.
 
+[1.2.0]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.2.0
 [1.1.0]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.1.0
 [1.0.1]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.0.1
 [1.0.0]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.0.0

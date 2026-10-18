@@ -84,6 +84,21 @@ You can drop several files at once (exports from different phones are merged), r
 and dropping a file with the same name replaces the old one. Files are read in your browser and uploaded
 to the server in a compact form (a 43 MB `Timeline.json` becomes a few MB), so every device sees them.
 
+### Phone tracking (OwnTracks) — no more exports
+
+[OwnTracks](https://owntracks.org) is a free, open-source app for iPhone and Android that sends your
+location straight to Fog Map in the background, so new trips show up without exporting anything.
+
+1. Install OwnTracks from the App Store or Google Play.
+2. Open its settings: **Mode** → `HTTP`, **URL** → `https://your-fog-map/api/owntracks`.
+3. Turn on **Authentication** and enter your `BASIC_AUTH` user and password (or the `OWNTRACKS_AUTH` ones, below).
+4. Pick a monitoring mode: **Significant** is easy on the battery but coarse; **Move** records every street.
+
+Points collect in a source called **OwnTracks** and appear the next time you open the map.
+If your site sits behind a forward-auth proxy (Authelia, tinyauth…), the app can't log in through it:
+let `/api/owntracks` bypass the proxy and set `OWNTRACKS_AUTH` so that path still needs a password.
+The endpoint refuses points when neither `OWNTRACKS_AUTH` nor `BASIC_AUTH` is set.
+
 ### Places
 
 For trips that aren't in your data — a holiday before you had a smartphone, a day trip without photos —
@@ -109,6 +124,7 @@ Everything can be set in the page. Environment variables are optional:
 | Variable | Default | Description |
 |---|---|---|
 | `BASIC_AUTH` | — | `user:password` login for the whole site. **Set it whenever anyone else can reach the page.** |
+| `OWNTRACKS_AUTH` | — | `user:password` for `/api/owntracks` only (the phone app). Without it, `BASIC_AUTH` applies there. |
 | `IMMICH_URL`, `IMMICH_API_KEY` | — | Starting values for the Immich connection. Settings saved in the page take precedence. |
 | `IMMICH_REFRESH_HOURS` | `6` | How long Immich results are cached on the server. |
 | `DATA_DIR` | `/data` | Settings, uploaded location data and places. Mount a volume here and back it up. |
