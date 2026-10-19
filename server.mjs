@@ -360,7 +360,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const body = await readFile(path.join(ROOT, file));
     send(res, 200, TYPES[path.extname(file)], file === 'index.html' ? versionAssets(body) : body);
-  } catch (err) {
+  } catch {
     send(res, 500, 'text/plain', 'Server error');
   }
 });

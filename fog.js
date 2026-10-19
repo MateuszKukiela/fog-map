@@ -55,7 +55,7 @@
     const cell = (v) => Math.min(n - 1, Math.floor(v * n));
 
     const seen = new Set();
-    const px = [], py = [];
+    const px = [];
     for (let i = 0; i < prep.x.length; i++) {
       const ix = cell(prep.x[i]), iy = cell(prep.y[i]);
       const key = ix * n + iy;

@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>Fog Map</title>
   <rect width="512" height="512" rx="96" fill="#080b18"/>
   <circle cx="256" cy="256" r="150" fill="#7cc4ff" opacity=".18"/>
   <circle cx="256" cy="256" r="96" fill="#7cc4ff" opacity=".45"/>

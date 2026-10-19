@@ -132,12 +132,13 @@ export class Library {
       buf.writeUInt32LE(n, 0);
       for (let col = 0; col < 3; col++) {
         prev.copy(buf, 4 + col * n * 8, 4 + col * m * 8, 4 + (col + 1) * m * 8);
-        pts.forEach((p, i) => buf.writeDoubleLE(p[col], 4 + (col * n + m + i) * 8));
+        for (const [i, p] of pts.entries()) buf.writeDoubleLE(p[col], 4 + (col * n + m + i) * 8);
       }
       prev.copy(buf, 4 + n * 24, 4 + m * 24); // kinds; new points stay 0 = path
       return this.put(name, buf);
     };
-    return (this.queue = (this.queue || Promise.resolve()).catch(() => {}).then(run));
+    this.queue = (this.queue || Promise.resolve()).catch(() => {}).then(run);
+    return this.queue;
   }
 
   async remove(id) {

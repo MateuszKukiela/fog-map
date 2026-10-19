@@ -111,7 +111,7 @@
   }
 
   function readRawSignal(sig, sink) {
-    const pos = sig && sig.position;
+    const pos = sig?.position;
     if (!pos) return;
     if (Number(pos.accuracyMeters) > MAX_ACCURACY_M) return;
     sink.add(parseCoord(pos), parseTime(pos.timestamp), KIND.PATH);
@@ -142,7 +142,7 @@
       const end = durationEnd(a.duration);
       sink.add(parseCoord(a.startLocation), start, KIND.ACTIVITY);
       sink.add(parseCoord(a.endLocation), end, KIND.ACTIVITY);
-      const raw = a.simplifiedRawPath && a.simplifiedRawPath.points;
+      const raw = a.simplifiedRawPath?.points;
       if (Array.isArray(raw)) {
         for (const p of raw) {
           if (Number(p.accuracyMeters) > MAX_ACCURACY_M) continue;
@@ -150,7 +150,7 @@
         }
       }
       // Waypoints carry no timestamps; spread them evenly over the activity.
-      const wps = a.waypointPath && a.waypointPath.waypoints;
+      const wps = a.waypointPath?.waypoints;
       if (Array.isArray(wps)) {
         const n = wps.length;
         wps.forEach((w, i) => {

@@ -80,7 +80,7 @@
 
   // Folder drops (Takeout "Semantic Location History", Photos) arrive as directory entries.
   async function filesFromDrop(dt) {
-    const entries = Array.from(dt.items || []).map((i) => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+    const entries = Array.from(dt.items || []).map((i) => i.webkitGetAsEntry?.()).filter(Boolean);
     if (!entries.length) return Array.from(dt.files);
     const out = [];
     async function walk(entry) {
@@ -338,7 +338,10 @@
       const day = localDay(t);
       const key = k * 1e5 + day;
       let g = groups.get(key);
-      if (!g) groups.set(key, (g = { min: t, max: t, idx: [] }));
+      if (!g) {
+        g = { min: t, max: t, idx: [] };
+        groups.set(key, g);
+      }
       g.min = Math.min(g.min, t);
       g.max = Math.max(g.max, t);
       g.idx.push(i);
@@ -606,9 +609,9 @@
         r.onerror = () => rej(r.error);
       });
       let parts = [];
-      if (v && v.parts) {
+      if (v?.parts) {
         parts = v.parts.map(({ name, ...data }) => ({ name, kind: name === IMMICH_PART ? 'immich' : 'file', data }));
-      } else if (v && v.lat && v.lat.length) {
+      } else if (v?.lat?.length) {
         parts = [{ name: 'earlier files (merged)', data: { lat: v.lat, lng: v.lng, t: v.t, kind: v.kind } }];
       }
       return parts.flatMap((p) => (p.name === 'earlier files (merged)' ? splitBySource(p.data).map((q) => ({ ...q, kind: 'file' })) : [p]));
@@ -786,7 +789,7 @@
   $('collapse').onclick = () => document.body.classList.toggle('collapsed');
 
   const radius = $('radius');
-  const radiusVal = () => Math.round(25 * Math.pow(2, Number(radius.value) / 10)); // 25 m .. 3.2 km
+  const radiusVal = () => Math.round(25 * 2 ** (Number(radius.value) / 10)); // 25 m .. 3.2 km
   radius.oninput = () => {
     const m = radiusVal();
     $('radius-out').textContent = m >= 1000 ? (m / 1000).toFixed(1) + ' km' : m + ' m';
@@ -1080,7 +1083,9 @@
     $('ot-user').value = c.user;
     // OwnTracks imports this config when the link is opened on the phone (mode 3 = HTTP); the password is typed in the app.
     const cfg = { _type: 'configuration', mode: 3, url, auth: true, usePassword: true, username: c.user };
-    $('ot-setup').href = 'owntracks:///config?inline=' + encodeURIComponent(btoa(JSON.stringify(cfg)));
+    $('ot-setup').onclick = () => {
+      location.href = 'owntracks:///config?inline=' + encodeURIComponent(btoa(JSON.stringify(cfg)));
+    };
   }
 
   function immichMsg(text, kind) {
@@ -1091,14 +1096,14 @@
 
   async function immichBusy(label, fn) {
     const buttons = dialog.querySelectorAll('.dlg-actions button');
-    buttons.forEach((b) => (b.disabled = true));
+    for (const b of buttons) b.disabled = true;
     immichMsg(label);
     try {
       await fn();
     } catch {
       immichMsg('Could not reach the fog map server.', 'err');
     } finally {
-      buttons.forEach((b) => (b.disabled = false));
+      for (const b of buttons) b.disabled = false;
     }
   }
 
@@ -1178,7 +1183,7 @@
     const list = $('places-list');
     list.innerHTML = '';
     $('places-empty').hidden = state.places.length > 0;
-    const order = state.places.map((p, i) => i).sort((a, b) => state.places[b].date.localeCompare(state.places[a].date));
+    const order = state.places.map((_, i) => i).sort((a, b) => state.places[b].date.localeCompare(state.places[a].date));
     for (const i of order) {
       const p = state.places[i];
       const li = document.createElement('li');
