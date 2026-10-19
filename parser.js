@@ -69,9 +69,15 @@
   }
 
   function createSink() {
-    const lat = [], lng = [], t = [], kind = [];
+    const lat = [],
+      lng = [],
+      t = [],
+      kind = [];
     return {
-      lat, lng, t, kind,
+      lat,
+      lng,
+      t,
+      kind,
       add(coord, time, k) {
         if (!coord) return;
         lat.push(coord[0]);
@@ -132,7 +138,8 @@
   function readTimelineObject(obj, sink) {
     if (obj.placeVisit) {
       const v = obj.placeVisit;
-      const vs = durationStart(v.duration), ve = durationEnd(v.duration);
+      const vs = durationStart(v.duration),
+        ve = durationEnd(v.duration);
       sink.add(parseCoord(v.location), vs, KIND.VISIT);
       if (ve > vs) sink.add(parseCoord(v.location), ve, KIND.VISIT);
     }
@@ -193,7 +200,8 @@
         // Date-only entries mean midday local time, so they land on the right day.
         const midday = (d) => parseTime(/^\d{4}-\d{2}-\d{2}$/.test(d) ? d + 'T12:00:00' : d);
         for (const p of json.places) {
-          const start = midday(p.date), end = p.to ? midday(p.to) : start;
+          const start = midday(p.date),
+            end = p.to ? midday(p.to) : start;
           // One point per day of a stay; setDate keeps midday across DST changes.
           for (const d = new Date(start); d.getTime() <= end; d.setDate(d.getDate() + 1)) {
             sink.add(parseCoord(p), d.getTime(), KIND.MANUAL);
@@ -240,8 +248,7 @@
     const toRad = Math.PI / 180;
     const dLat = (lat2 - lat1) * toRad;
     const dLng = (lng2 - lng1) * toRad;
-    const a = Math.sin(dLat / 2) ** 2 +
-      Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLng / 2) ** 2;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLng / 2) ** 2;
     return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
   }
 
@@ -255,7 +262,8 @@
 
     const pairs = [];
     for (let k = 1; k < idx.length; k++) {
-      const a = idx[k - 1], b = idx[k];
+      const a = idx[k - 1],
+        b = idx[k];
       const dt = data.t[b] - data.t[a];
       if (dt > MAX_HOP_MS) continue;
       const d = distanceM(data.lat[a], data.lng[a], data.lat[b], data.lng[b]);

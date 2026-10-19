@@ -4,11 +4,12 @@
 //   sources.json            index: [{ id, name, points, updatedAt }]
 //   sources/<id>.bin.gz     point blob (gzipped, served as-is to browsers that accept gzip)
 //   places.json             { places: [{ name, lat, lng, date, to? }] }
-import { readFile, writeFile, rename, rm, mkdir } from 'node:fs/promises';
-import path from 'node:path';
+
 import { randomUUID } from 'node:crypto';
-import { gzip, gunzipSync } from 'node:zlib';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { promisify } from 'node:util';
+import { gunzipSync, gzip } from 'node:zlib';
 
 const gzipAsync = promisify(gzip);
 
@@ -29,7 +30,9 @@ export function validatePoints(buf) {
   if (buf.length !== maxBlobBytes(n)) return 'The upload is malformed.';
   const f = new Float64Array(buf.buffer.slice(buf.byteOffset + 4, buf.byteOffset + 4 + n * 24));
   for (let i = 0; i < n; i++) {
-    const lat = f[i], lng = f[n + i], t = f[2 * n + i];
+    const lat = f[i],
+      lng = f[n + i],
+      t = f[2 * n + i];
     if (!(lat >= -90 && lat <= 90) || !(lng >= -180 && lng <= 180)) return 'The upload has invalid coordinates.';
     if (!Number.isNaN(t) && !Number.isFinite(t)) return 'The upload has invalid timestamps.';
   }
@@ -51,7 +54,8 @@ export function validatePlaces(input) {
     if (!p || typeof p !== 'object') return [null, `${where} is not valid.`];
     const name = typeof p.name === 'string' ? p.name.trim() : '';
     if (!name || name.length > 200) return [null, `${where} needs a name (up to 200 characters).`];
-    const lat = Number(p.lat), lng = Number(p.lng);
+    const lat = Number(p.lat),
+      lng = Number(p.lng);
     if (!(lat >= -90 && lat <= 90) || !(lng >= -180 && lng <= 180)) return [null, `${name}: the location is not valid.`];
     if (!validDate(p.date)) return [null, `${name}: the date must look like 2015-07-20.`];
     const place = { name, lat, lng, date: p.date };
@@ -126,7 +130,8 @@ export class Library {
     const run = async () => {
       const old = this.sources.find((s) => s.name === name);
       const prev = old ? gunzipSync(await readFile(this.blobPath(old.id))) : Buffer.alloc(4);
-      const m = prev.readUInt32LE(0), n = m + pts.length;
+      const m = prev.readUInt32LE(0),
+        n = m + pts.length;
       if (n > MAX_POINTS) throw Object.assign(new Error(`Too many points (max ${MAX_POINTS.toLocaleString('en')}).`), { status: 413 });
       const buf = Buffer.alloc(maxBlobBytes(n));
       buf.writeUInt32LE(n, 0);

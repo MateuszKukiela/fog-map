@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 // Self-hosted fog map: serves the page and pulls photo locations from Immich server-side,
 // so the API key never reaches the browser and there's no CORS to configure.
 //
@@ -16,13 +18,11 @@
 //                                (the saved copy is served meanwhile, so pages never wait for a sync).
 //   PORT=8080
 import http from 'node:http';
-import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { timingSafeEqual, createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
-import { fetchImmichPhotos, checkImmich, normalizeUrl } from './immich.mjs';
-import { Library, validatePoints, validatePlaces, MAX_POINTS, maxBlobBytes } from './library.mjs';
+import { checkImmich, fetchImmichPhotos, normalizeUrl } from './immich.mjs';
+import { Library, MAX_POINTS, maxBlobBytes, validatePlaces, validatePoints } from './library.mjs';
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -157,7 +157,9 @@ async function handleLibrary(req, res, pathname) {
 // POST {url, apiKey?, test?}: check the connection, and save it unless test.
 async function updateImmich(req) {
   const input = await readJson(req);
-  const url = String(input.url ?? ''), apiKey = String(input.apiKey ?? ''), test = input.test === true;
+  const url = String(input.url ?? ''),
+    apiKey = String(input.apiKey ?? ''),
+    test = input.test === true;
   let parsed;
   try {
     parsed = new URL(url.trim());
@@ -187,8 +189,21 @@ async function updateImmich(req) {
 const STATIC = {
   '/': 'index.html',
   ...Object.fromEntries(
-    ['index.html', 'app.js', 'parser.js', 'fog.js', 'countries.js', 'airports.js', 'tcc.js', 'cities.js', 'towns.js',
-      'icon.svg', 'manifest.webmanifest', 'vendor/maplibre-gl/maplibre-gl.js', 'vendor/maplibre-gl/maplibre-gl.css'].map((f) => ['/' + f, f]),
+    [
+      'index.html',
+      'app.js',
+      'parser.js',
+      'fog.js',
+      'countries.js',
+      'airports.js',
+      'tcc.js',
+      'cities.js',
+      'towns.js',
+      'icon.svg',
+      'manifest.webmanifest',
+      'vendor/maplibre-gl/maplibre-gl.js',
+      'vendor/maplibre-gl/maplibre-gl.css',
+    ].map((f) => ['/' + f, f]),
   ),
 };
 // iOS Safari kept running old scripts after an update even with no-cache, so index.html points at
@@ -211,7 +226,7 @@ const SECURITY_HEADERS = {
   'x-frame-options': 'DENY',
 };
 
-const basic = (cred) => cred ? Buffer.from('Basic ' + Buffer.from(cred).toString('base64')) : null;
+const basic = (cred) => (cred ? Buffer.from('Basic ' + Buffer.from(cred).toString('base64')) : null);
 const expectedAuth = basic(BASIC_AUTH);
 const expectedOwnTracks = basic(OWNTRACKS_AUTH);
 function authorized(req, expected) {
@@ -229,7 +244,9 @@ async function ownTracks(req) {
   requireType(req, 'application/json');
   const msg = await readJson(req, 100_000);
   if (msg._type !== 'location') return;
-  const lat = Number(msg.lat), lng = Number(msg.lon), t = Number(msg.tst) * 1000;
+  const lat = Number(msg.lat),
+    lng = Number(msg.lon),
+    t = Number(msg.tst) * 1000;
   if (!(lat >= -90 && lat <= 90) || !(lng >= -180 && lng <= 180) || !Number.isFinite(t)) throw httpError(400, 'Invalid location.');
   await library.append(OWNTRACKS_SOURCE, [[lat, lng, t]]);
 }
@@ -270,7 +287,9 @@ function syncImmich() {
         console.log(`Immich: ${data.photos.length} geotagged photos in ${((Date.now() - started) / 1000).toFixed(1)} s`);
         return body;
       })
-      .finally(() => { if (gen === generation) inflight = null; });
+      .finally(() => {
+        if (gen === generation) inflight = null;
+      });
   }
   return inflight;
 }
@@ -330,7 +349,12 @@ const server = http.createServer(async (req, res) => {
       }
     } catch (err) {
       console.error('Settings:', err.message);
-      return send(res, err.status || 500, 'application/json', JSON.stringify({ error: err.status ? err.message : 'Could not save settings' }));
+      return send(
+        res,
+        err.status || 500,
+        'application/json',
+        JSON.stringify({ error: err.status ? err.message : 'Could not save settings' }),
+      );
     }
     return send(res, 405, 'application/json', '{"error":"Method not allowed"}');
   }
@@ -369,7 +393,11 @@ await loadSettings();
 await loadImmichCache();
 await library.load();
 server.listen(PORT, () => {
-  console.log(`fog-map on :${server.address().port}` + (immich ? `, Immich at ${immich.url}` : ', Immich not configured') + (expectedAuth ? ', login required' : ''));
+  console.log(
+    `fog-map on :${server.address().port}` +
+      (immich ? `, Immich at ${immich.url}` : ', Immich not configured') +
+      (expectedAuth ? ', login required' : ''),
+  );
   if (!expectedAuth) console.warn('No BASIC_AUTH set: anyone who can reach this port can see your photo locations and change settings.');
   if (immich) immichJson(false).catch((err) => console.error('Immich:', err.message)); // warm the cache
 });

@@ -60,7 +60,11 @@
       }
     }
     if (!added) {
-      setStatus(errors.join(' ') || 'No location points found. Expected Timeline.json, location-history.json, Records.json, immich-photos.json or manual-places.json.', true);
+      setStatus(
+        errors.join(' ') ||
+          'No location points found. Expected Timeline.json, location-history.json, Records.json, immich-photos.json or manual-places.json.',
+        true,
+      );
       return;
     }
     setStatus(errors.join(' '), errors.length > 0);
@@ -80,7 +84,9 @@
 
   // Folder drops (Takeout "Semantic Location History", Photos) arrive as directory entries.
   async function filesFromDrop(dt) {
-    const entries = Array.from(dt.items || []).map((i) => i.webkitGetAsEntry?.()).filter(Boolean);
+    const entries = Array.from(dt.items || [])
+      .map((i) => i.webkitGetAsEntry?.())
+      .filter(Boolean);
     if (!entries.length) return Array.from(dt.files);
     const out = [];
     async function walk(entry) {
@@ -122,7 +128,10 @@
 
   function fitToData() {
     const { lat, lng } = state.data;
-    let s = 90, n = -90, w = 180, e = -180;
+    let s = 90,
+      n = -90,
+      w = 180,
+      e = -180;
     for (let i = 0; i < lat.length; i++) {
       if (lat[i] < s) s = lat[i];
       if (lat[i] > n) n = lat[i];
@@ -132,7 +141,13 @@
     // Keep the data clear of the panel on wide screens.
     const panel = document.querySelector('.panel').getBoundingClientRect();
     const left = window.innerWidth > 700 && !document.body.classList.contains('collapsed') ? panel.right + 40 : 40;
-    map.fitBounds([[w, s], [e, n]], { padding: { top: 60, bottom: 60, right: 60, left }, maxZoom: 12, duration: 0 });
+    map.fitBounds(
+      [
+        [w, s],
+        [e, n],
+      ],
+      { padding: { top: 60, bottom: 60, right: 60, left }, maxZoom: 12, duration: 0 },
+    );
   }
 
   // ---------- filtering + stats ----------
@@ -163,8 +178,11 @@
     let inside = false;
     for (const r of rings) {
       for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) {
-        const xi = r[i], yi = r[i + 1], xj = r[j], yj = r[j + 1];
-        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+        const xi = r[i],
+          yi = r[i + 1],
+          xj = r[j],
+          yj = r[j + 1];
+        if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
       }
     }
     return inside;
@@ -182,21 +200,28 @@
   // Fallback for points just outside the simplified coastline.
   function nearestCountry(lng, lat) {
     const tol = COAST_TOLERANCE_DEG;
-    const sx = Math.cos(lat * Math.PI / 180);
-    let best = -1, bestD = tol * tol;
+    const sx = Math.cos((lat * Math.PI) / 180);
+    let best = -1,
+      bestD = tol * tol;
     for (let k = 0; k < COUNTRIES.length; k++) {
       const b = COUNTRIES[k].b;
       if (lng < b[0] - tol || lng > b[2] + tol || lat < b[1] - tol || lat > b[3] + tol) continue;
       for (const poly of COUNTRIES[k].p) {
         for (const r of poly) {
           for (let i = 2; i < r.length; i += 2) {
-            const ax = (r[i - 2] - lng) * sx, ay = r[i - 1] - lat;
-            const bx = (r[i] - lng) * sx, by = r[i + 1] - lat;
-            const dx = bx - ax, dy = by - ay;
+            const ax = (r[i - 2] - lng) * sx,
+              ay = r[i - 1] - lat;
+            const bx = (r[i] - lng) * sx,
+              by = r[i + 1] - lat;
+            const dx = bx - ax,
+              dy = by - ay;
             const len = dx * dx + dy * dy;
             const t = len ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len)) : 0;
             const d = (ax + t * dx) ** 2 + (ay + t * dy) ** 2;
-            if (d < bestD) { bestD = d; best = k; }
+            if (d < bestD) {
+              bestD = d;
+              best = k;
+            }
           }
         }
       }
@@ -233,20 +258,29 @@
       const k = countryOf[countryIdx[i]];
       weight.set(k, (weight.get(k) || 0) + (data.kind[i] === 0 ? 1 : MIN_COUNTRY_WEIGHT));
     }
-    return Array.from(weight).filter(([, w]) => w >= MIN_COUNTRY_WEIGHT).sort((a, b) => b[1] - a[1]).map(([k]) => COUNTRIES[k]);
+    return Array.from(weight)
+      .filter(([, w]) => w >= MIN_COUNTRY_WEIGHT)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k]) => COUNTRIES[k]);
   }
 
   // Home = the country index with the most distinct days in the data (airports ignored).
   function detectHome(data, countryIdx, airport) {
     const days = new Map();
     for (let i = 0; i < countryIdx.length; i++) {
-      const k = countryIdx[i], t = data.t[i];
+      const k = countryIdx[i],
+        t = data.t[i];
       if (k < 0 || airport[i] || !Number.isFinite(t)) continue;
       if (!days.has(k)) days.set(k, new Set());
       days.get(k).add(localDay(t));
     }
-    let home = -1, best = 0;
-    for (const [k, set] of days) if (set.size > best) { best = set.size; home = k; }
+    let home = -1,
+      best = 0;
+    for (const [k, set] of days)
+      if (set.size > best) {
+        best = set.size;
+        home = k;
+      }
     return home;
   }
 
@@ -274,12 +308,17 @@
     }
     const out = new Uint8Array(data.lat.length);
     for (let i = 0; i < out.length; i++) {
-      const lat = data.lat[i], lng = data.lng[i];
-      const cy = Math.floor(lat * 10), cx = Math.floor(lng * 10);
+      const lat = data.lat[i],
+        lng = data.lng[i];
+      const cy = Math.floor(lat * 10),
+        cx = Math.floor(lng * 10);
       search: for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           for (const a of grid.get(key(cy + dy, cx + dx)) || []) {
-            if (distanceM(lat, lng, a[0], a[1]) <= a[2] * 1000) { out[i] = 1; break search; }
+            if (distanceM(lat, lng, a[0], a[1]) <= a[2] * 1000) {
+              out[i] = 1;
+              break search;
+            }
           }
         }
       }
@@ -321,8 +360,10 @@
     }
     const size = (c) => clusters[c][1] - clusters[c][0] + 1;
     for (let c = 1; c < clusters.length - 1; c++) {
-      const prev = timed[clusters[c - 1][1]], first = timed[clusters[c][0]];
-      const last = timed[clusters[c][1]], next = timed[clusters[c + 1][0]];
+      const prev = timed[clusters[c - 1][1]],
+        first = timed[clusters[c][0]];
+      const last = timed[clusters[c][1]],
+        next = timed[clusters[c + 1][0]];
       if (dist(prev, next) > CLUSTER_M) continue;
       if (size(c) >= Math.min(size(c - 1), size(c + 1))) continue;
       if (Math.max(speed(prev, first), speed(last, next)) <= TELEPORT_MPS) continue;
@@ -332,7 +373,8 @@
     const groups = new Map(); // country*1e5 + day -> {min, max, idx}
     const days = new Map(); // country -> Set(day)
     for (let i = 0; i < n; i++) {
-      const k = countryIdx[i], t = data.t[i];
+      const k = countryIdx[i],
+        t = data.t[i];
       // Hand-added places are trusted as-is: never grouped, so never dropped.
       if (!ok[i] || airport[i] || data.kind[i] === 4 || k < 0 || !Number.isFinite(t)) continue;
       const day = localDay(t);
@@ -349,7 +391,8 @@
       days.get(k).add(day);
     }
     for (const [key, g] of groups) {
-      const k = Math.floor(key / 1e5), day = key % 1e5;
+      const k = Math.floor(key / 1e5),
+        day = key % 1e5;
       if (g.max - g.min >= MIN_STAY_MS || k === state.home) continue;
       let again = false;
       for (let d = 1; d <= STAY_WINDOW_DAYS && !again; d++) again = days.get(k).has(day - d) || days.get(k).has(day + d);
@@ -361,15 +404,18 @@
   // year -> days spent outside the home country, with short data gaps inside a trip filled in
   function daysAbroadByYear() {
     const { data, countryIdx, credible } = state;
-    const abroad = new Set(), home = new Set();
+    const abroad = new Set(),
+      home = new Set();
     for (let i = 0; i < countryIdx.length; i++) {
-      const k = countryIdx[i], t = data.t[i];
+      const k = countryIdx[i],
+        t = data.t[i];
       if (!credible[i] || state.airport[i] || k < 0 || !Number.isFinite(t)) continue;
       (k === state.home ? home : abroad).add(localDay(t));
     }
     const sorted = Array.from(abroad).sort((a, b) => a - b);
     for (let j = 1; j < sorted.length; j++) {
-      const a = sorted[j - 1], b = sorted[j];
+      const a = sorted[j - 1],
+        b = sorted[j];
       if (b - a - 1 > MAX_GAP_FILL_DAYS) continue;
       let wasHome = false;
       for (let d = a + 1; d < b && !wasHome; d++) wasHome = home.has(d);
@@ -411,15 +457,21 @@
 
   // Per point: index into state.territoryNames, -1 for none. Cached per ~1 km cell like countries.
   function classifyTerritories(data, countryIdx) {
-    const names = [], index = new Map(), cache = new Map();
+    const names = [],
+      index = new Map(),
+      cache = new Map();
     const out = new Int16Array(data.lat.length);
     for (let i = 0; i < out.length; i++) {
-      const ix = Math.floor(data.lng[i] / COUNTRY_CELL_DEG), iy = Math.floor(data.lat[i] / COUNTRY_CELL_DEG);
+      const ix = Math.floor(data.lng[i] / COUNTRY_CELL_DEG),
+        iy = Math.floor(data.lat[i] / COUNTRY_CELL_DEG);
       const key = (ix * 100000 + iy) * 300 + countryIdx[i] + 1;
       let t = cache.get(key);
       if (t === undefined) {
         const name = territoryAt(data.lng[i], data.lat[i], countryIdx[i]);
-        if (name && !index.has(name)) { index.set(name, names.length); names.push(name); }
+        if (name && !index.has(name)) {
+          index.set(name, names.length);
+          names.push(name);
+        }
         t = name ? index.get(name) : -1;
         cache.set(key, t);
       }
@@ -437,7 +489,10 @@
       if ((include && !include[i]) || territory[i] < 0) continue;
       weight.set(territory[i], (weight.get(territory[i]) || 0) + (data.kind[i] === 0 ? 1 : MIN_COUNTRY_WEIGHT));
     }
-    return Array.from(weight).filter(([, w]) => w >= MIN_COUNTRY_WEIGHT).sort((a, b) => b[1] - a[1]).map(([t]) => state.territoryNames[t]);
+    return Array.from(weight)
+      .filter(([, w]) => w >= MIN_COUNTRY_WEIGHT)
+      .sort((a, b) => b[1] - a[1])
+      .map(([t]) => state.territoryNames[t]);
   }
 
   // ---------- cities (cities.js, 100k+ people) ----------
@@ -458,12 +513,14 @@
     const cache = new Map();
     const out = new Int16Array(data.lat.length);
     for (let i = 0; i < out.length; i++) {
-      const lat = data.lat[i], lng = data.lng[i];
+      const lat = data.lat[i],
+        lng = data.lng[i];
       const cell = Math.floor(lng / COUNTRY_CELL_DEG) * 100000 + Math.floor(lat / COUNTRY_CELL_DEG);
       let best = cache.get(cell);
       if (best === undefined) {
         best = -1;
-        const by = Math.floor(lat / CITY_BUCKET_DEG), bx = Math.floor(lng / CITY_BUCKET_DEG);
+        const by = Math.floor(lat / CITY_BUCKET_DEG),
+          bx = Math.floor(lng / CITY_BUCKET_DEG);
         for (let dy = -1; dy <= 1; dy++) {
           for (let dx = -1; dx <= 1; dx++) {
             for (const idx of grid.get((by + dy) * 1000 + bx + dx) || []) {
@@ -488,7 +545,11 @@
       if ((include && !include[i]) || city[i] < 0 || state.airport[i]) continue;
       weight.set(city[i], (weight.get(city[i]) || 0) + (data.kind[i] === 0 ? 1 : MIN_COUNTRY_WEIGHT));
     }
-    return Array.from(weight).filter(([, w]) => w >= MIN_COUNTRY_WEIGHT).map(([c]) => c).sort((a, b) => a - b).map((c) => CITIES[c]);
+    return Array.from(weight)
+      .filter(([, w]) => w >= MIN_COUNTRY_WEIGHT)
+      .map(([c]) => c)
+      .sort((a, b) => a - b)
+      .map((c) => CITIES[c]);
   }
 
   const flag = (code) => (code ? String.fromCodePoint(...[...code].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65)) : '🏳️');
@@ -519,9 +580,10 @@
     for (const p of state.parts) {
       const li = document.createElement('li');
       const label = document.createElement('span');
-      label.textContent = p.kind === 'places'
-        ? `Places · ${state.places.length.toLocaleString()} added by hand`
-        : `${p.name} · ${p.data.lat.length.toLocaleString()} pts`;
+      label.textContent =
+        p.kind === 'places'
+          ? `Places · ${state.places.length.toLocaleString()} added by hand`
+          : `${p.name} · ${p.data.lat.length.toLocaleString()} pts`;
       const x = document.createElement('button');
       x.className = 'remove';
       if (p.kind === 'immich') {
@@ -553,12 +615,17 @@
       b.onclick = onClick;
       box.appendChild(b);
     };
-    mk('All', state.years.size === 0, () => { state.years.clear(); renderYears(); applyFilter(); });
+    mk('All', state.years.size === 0, () => {
+      state.years.clear();
+      renderYears();
+      applyFilter();
+    });
     for (const y of state.allYears) {
       mk(String(y), state.years.has(y), (ev) => {
         // Click = only this year, shift/cmd-click = add to selection.
         if (!(ev.shiftKey || ev.metaKey || ev.ctrlKey)) state.years.clear();
-        if (state.years.has(y)) state.years.delete(y); else state.years.add(y);
+        if (state.years.has(y)) state.years.delete(y);
+        else state.years.add(y);
         renderYears();
         applyFilter();
       });
@@ -581,20 +648,34 @@
       const parts = state.parts.map(({ name, data: d }) => ({ name, lat: d.lat, lng: d.lng, t: d.t, kind: d.kind }));
       const tx = (await db()).transaction('kv', 'readwrite');
       tx.objectStore('kv').put({ parts }, 'data');
-    } catch (err) { console.warn('save failed', err); }
+    } catch (err) {
+      console.warn('save failed', err);
+    }
   }
 
   // Data saved before per-file storage was one merged blob. Point kind maps to the source
   // (GPS/visits/activities = Timeline, 3 = photos, 4 = manual), so split it back that way.
   function splitBySource(d) {
-    const groups = [['Timeline (saved earlier)', [0, 1, 2]], ['Photos (saved earlier)', [3]], ['Manual places (saved earlier)', [4]]];
+    const groups = [
+      ['Timeline (saved earlier)', [0, 1, 2]],
+      ['Photos (saved earlier)', [3]],
+      ['Manual places (saved earlier)', [4]],
+    ];
     const out = [];
     for (const [name, kinds] of groups) {
       const idx = [];
       for (let i = 0; i < d.kind.length; i++) if (kinds.includes(d.kind[i])) idx.push(i);
       if (!idx.length) continue;
       const pick = (arr, Type) => Type.from(idx, (i) => arr[i]);
-      out.push({ name, data: { lat: pick(d.lat, Float64Array), lng: pick(d.lng, Float64Array), t: pick(d.t, Float64Array), kind: pick(d.kind, Uint8Array) } });
+      out.push({
+        name,
+        data: {
+          lat: pick(d.lat, Float64Array),
+          lng: pick(d.lng, Float64Array),
+          t: pick(d.t, Float64Array),
+          kind: pick(d.kind, Uint8Array),
+        },
+      });
     }
     return out;
   }
@@ -622,7 +703,11 @@
   }
 
   async function forgetLocal() {
-    try { (await db()).transaction('kv', 'readwrite').objectStore('kv').delete('data'); } catch (err) { console.warn(err); }
+    try {
+      (await db()).transaction('kv', 'readwrite').objectStore('kv').delete('data');
+    } catch (err) {
+      console.warn(err);
+    }
   }
 
   async function restore() {
@@ -646,7 +731,12 @@
     const files = state.parts.filter((p) => p.kind === 'file');
     if (state.server) {
       if (!files.length) return;
-      if (!confirm(`Delete ${files.length === 1 ? files[0].name : `all ${files.length} uploaded files`} from the server?\nImmich photos and your places stay.`)) return;
+      if (
+        !confirm(
+          `Delete ${files.length === 1 ? files[0].name : `all ${files.length} uploaded files`} from the server?\nImmich photos and your places stay.`,
+        )
+      )
+        return;
       for (const p of files) await removePart(p);
       return;
     }
@@ -707,14 +797,18 @@
   async function loadLibrary() {
     setStatus('Loading your data…');
     let photosError = null;
-    const photos = fetchImmich().catch((err) => { photosError = err; });
+    const photos = fetchImmich().catch((err) => {
+      photosError = err;
+    });
     try {
       const [{ sources }, { places }] = await Promise.all([api('GET', 'api/sources'), api('GET', 'api/places')]);
-      const files = await Promise.all(sources.map(async (s) => {
-        const res = await fetch('api/sources/' + s.id);
-        if (!res.ok) throw new Error(`could not load ${s.name}`);
-        return { name: s.name, kind: 'file', id: s.id, data: decodePoints(await res.arrayBuffer()) };
-      }));
+      const files = await Promise.all(
+        sources.map(async (s) => {
+          const res = await fetch('api/sources/' + s.id);
+          if (!res.ok) throw new Error(`could not load ${s.name}`);
+          return { name: s.name, kind: 'file', id: s.id, data: decodePoints(await res.arrayBuffer()) };
+        }),
+      );
       const immich = await photos;
       await mapReady;
       state.places = places;
@@ -782,7 +876,10 @@
 
   $('pick').onclick = () => $('file').click();
   $('add').onclick = () => $('file').click();
-  $('file').onchange = (e) => { readFiles(Array.from(e.target.files)); e.target.value = ''; };
+  $('file').onchange = (e) => {
+    readFiles(Array.from(e.target.files));
+    e.target.value = '';
+  };
   $('clear').onclick = () => clearAll();
   $('open-places').onclick = openPlaces;
   $('open-places-empty').onclick = openPlaces;
@@ -802,8 +899,17 @@
   radius.oninput();
 
   let dragDepth = 0;
-  window.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; document.body.classList.add('dragging'); });
-  window.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragging'); } });
+  window.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    dragDepth++;
+    document.body.classList.add('dragging');
+  });
+  window.addEventListener('dragleave', () => {
+    if (--dragDepth <= 0) {
+      dragDepth = 0;
+      document.body.classList.remove('dragging');
+    }
+  });
   window.addEventListener('dragover', (e) => e.preventDefault());
   window.addEventListener('drop', async (e) => {
     e.preventDefault();
@@ -827,7 +933,8 @@
   function isStop(fixes) {
     if (fixes.manual) return true;
     fixes.sort((a, b) => a[0] - b[0]);
-    let start = 0, photos = 0;
+    let start = 0,
+      photos = 0;
     for (let j = 0; j < fixes.length; j++) {
       if (j > 0 && fixes[j][0] - fixes[j - 1][0] > STOP_GAP_MS && !(fixes[j][1] === 1 && fixes[j - 1][1] === 1)) {
         start = j;
@@ -850,13 +957,18 @@
         townGrid.get(k).push(t);
       }
     }
-    let best = null, bestD = maxM;
-    const by = Math.floor(lat / CITY_BUCKET_DEG), bx = Math.floor(lng / CITY_BUCKET_DEG);
+    let best = null,
+      bestD = maxM;
+    const by = Math.floor(lat / CITY_BUCKET_DEG),
+      bx = Math.floor(lng / CITY_BUCKET_DEG);
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         for (const t of townGrid.get((by + dy) * 1000 + bx + dx) || []) {
           const d = distanceM(lat, lng, t[2], t[3]);
-          if (d < bestD) { bestD = d; best = t; }
+          if (d < bestD) {
+            bestD = d;
+            best = t;
+          }
         }
       }
     }
@@ -884,7 +996,8 @@
     for (const c of [...cells.values()].sort((a, b) => b.w - a.w)) {
       if (c.w < MIN_COUNTRY_WEIGHT) break;
       if (!isStop(c.fixes)) continue;
-      const lat = c.lat / c.w, lng = c.lng / c.w;
+      const lat = c.lat / c.w,
+        lng = c.lng / c.w;
       if (taken.some(([a, b]) => distanceM(lat, lng, a, b) < PLACE_MERGE_M)) continue;
       taken.push([lat, lng]);
       const near = nearestTown(lat, lng, PLACE_MERGE_M);
@@ -895,7 +1008,9 @@
   }
 
   function pinImage(light, mid, dark) {
-    const s = 2, w = 28, h = 40; // drawn at 2x for sharp pins on retina screens
+    const s = 2,
+      w = 28,
+      h = 40; // drawn at 2x for sharp pins on retina screens
     const c = document.createElement('canvas');
     c.width = w * s;
     c.height = h * s;
@@ -955,7 +1070,11 @@
       const title = document.createElement('strong');
       title.textContent = `${flag(p.cc)} ${p.name}`;
       box.appendChild(title);
-      for (const line of tripLines(p.kind === 'city' ? (i) => state.city[i] === p.ci : (i) => state.city[i] < 0 && distanceM(lat, lng, state.data.lat[i], state.data.lng[i]) < PLACE_MERGE_M)) {
+      for (const line of tripLines(
+        p.kind === 'city'
+          ? (i) => state.city[i] === p.ci
+          : (i) => state.city[i] < 0 && distanceM(lat, lng, state.data.lat[i], state.data.lng[i]) < PLACE_MERGE_M,
+      )) {
         const div = document.createElement('div');
         div.className = 'pin-date';
         div.textContent = line;
@@ -963,8 +1082,12 @@
       }
       new maplibregl.Popup({ offset: [0, -30] }).setLngLat([lng, lat]).setDOMContent(box).addTo(map);
     });
-    map.on('mouseenter', 'pins', () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', 'pins', () => { map.getCanvas().style.cursor = ''; });
+    map.on('mouseenter', 'pins', () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', 'pins', () => {
+      map.getCanvas().style.cursor = '';
+    });
   }
 
   const TRIP_GAP_DAYS = 2; // days this far apart are one trip
@@ -985,8 +1108,12 @@
       if (last && day - last[1] <= TRIP_GAP_DAYS) last[1] = day;
       else trips.push([day, day]);
     }
-    const fmtDay = (day) => new Date(day * 86400000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
-    const lines = trips.reverse().slice(0, MAX_TRIPS).map(([a, b]) => (a === b ? fmtDay(a) : `${fmtDay(a)} – ${fmtDay(b)}`));
+    const fmtDay = (day) =>
+      new Date(day * 86400000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const lines = trips
+      .reverse()
+      .slice(0, MAX_TRIPS)
+      .map(([a, b]) => (a === b ? fmtDay(a) : `${fmtDay(a)} – ${fmtDay(b)}`));
     if (trips.length > MAX_TRIPS) lines.push(`+ ${trips.length - MAX_TRIPS} earlier trips`);
     return lines;
   }
@@ -996,7 +1123,11 @@
     if (!src) return;
     const feature = (kind) => (c) => {
       const [name, cc, lat, lng] = c;
-      return { type: 'Feature', properties: { kind, name, cc, lat, ci: kind === 'city' ? CITIES.indexOf(c) : -1 }, geometry: { type: 'Point', coordinates: [lng, lat] } };
+      return {
+        type: 'Feature',
+        properties: { kind, name, cc, lat, ci: kind === 'city' ? CITIES.indexOf(c) : -1 },
+        geometry: { type: 'Point', coordinates: [lng, lat] },
+      };
     };
     src.setData({ type: 'FeatureCollection', features: [...cities.map(feature('city')), ...places.map(feature('place'))] });
   }
@@ -1074,7 +1205,11 @@
   function renderOwnTracks() {
     const c = ownTracksCfg;
     const el = $('ot-state');
-    el.textContent = !c.enabled ? 'Off' : c.points ? `${c.points.toLocaleString()} points · last ${new Date(c.lastAt).toLocaleString()}` : 'Waiting for the first point';
+    el.textContent = !c.enabled
+      ? 'Off'
+      : c.points
+        ? `${c.points.toLocaleString()} points · last ${new Date(c.lastAt).toLocaleString()}`
+        : 'Waiting for the first point';
     el.classList.toggle('on', c.points > 0);
     $('ot-off').hidden = c.enabled;
     $('ot-on').hidden = !c.enabled;
@@ -1108,7 +1243,11 @@
   }
 
   async function settingsCall(method, body) {
-    const res = await fetch('api/settings/immich', { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
+    const res = await fetch('api/settings/immich', {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body || {}),
+    });
     return [res.ok, await res.json().catch(() => ({}))];
   }
 
@@ -1125,7 +1264,12 @@
       renderImmich();
       immichMsg(`Saved. Signed in as ${body.user}. Loading photos, the first sync can take a minute…`, 'ok');
       const n = await loadImmich();
-      immichMsg(n != null ? `Saved. ${n.toLocaleString()} geotagged photos loaded.` : 'Saved, but loading photos failed. See the message in the panel.', n != null ? 'ok' : 'err');
+      immichMsg(
+        n != null
+          ? `Saved. ${n.toLocaleString()} geotagged photos loaded.`
+          : 'Saved, but loading photos failed. See the message in the panel.',
+        n != null ? 'ok' : 'err',
+      );
     });
   }
 
@@ -1135,10 +1279,13 @@
     renderOwnTracks();
     dialog.showModal();
     // Refresh the phone status, it changes as points arrive.
-    fetch('api/settings').then((r) => r.json()).then((s) => {
-      ownTracksCfg = s.owntracks;
-      renderOwnTracks();
-    }).catch(() => {});
+    fetch('api/settings')
+      .then((r) => r.json())
+      .then((s) => {
+        ownTracksCfg = s.owntracks;
+        renderOwnTracks();
+      })
+      .catch(() => {});
   };
   $('settings-close').onclick = () => dialog.close();
   $('immich-form').onsubmit = (e) => {
@@ -1146,26 +1293,32 @@
     submitImmich(false);
   };
   $('immich-test').onclick = () => submitImmich(true);
-  $('immich-sync').onclick = () => immichBusy('Syncing photos from Immich…', async () => {
-    const n = await loadImmich(true);
-    immichMsg(n != null ? `Synced. ${n.toLocaleString()} geotagged photos.` : 'Sync failed. See the message in the panel.', n != null ? 'ok' : 'err');
-  });
-  $('immich-disconnect').onclick = () => immichBusy('Disconnecting…', async () => {
-    const [ok, body] = await settingsCall('DELETE');
-    if (!ok) return immichMsg(body.error || 'Something went wrong.', 'err');
-    immichCfg = body.immich;
-    renderImmich();
-    state.parts = state.parts.filter((p) => p.name !== IMMICH_PART);
-    rebuild(false);
-    immichMsg('Disconnected. The saved API key was deleted from the server.', 'ok');
-  });
+  $('immich-sync').onclick = () =>
+    immichBusy('Syncing photos from Immich…', async () => {
+      const n = await loadImmich(true);
+      immichMsg(
+        n != null ? `Synced. ${n.toLocaleString()} geotagged photos.` : 'Sync failed. See the message in the panel.',
+        n != null ? 'ok' : 'err',
+      );
+    });
+  $('immich-disconnect').onclick = () =>
+    immichBusy('Disconnecting…', async () => {
+      const [ok, body] = await settingsCall('DELETE');
+      if (!ok) return immichMsg(body.error || 'Something went wrong.', 'err');
+      immichCfg = body.immich;
+      renderImmich();
+      state.parts = state.parts.filter((p) => p.name !== IMMICH_PART);
+      rebuild(false);
+      immichMsg('Disconnected. The saved API key was deleted from the server.', 'ok');
+    });
 
   // ---------- places dialog: trips that aren't in any export, stored on the server ----------
 
   const placesDlg = $('places-dlg');
   const form = { index: -1, name: '', lat: null, lng: null }; // index >= 0 while editing
 
-  const fmtDay = (d) => new Date(d + 'T00:00:00Z').toLocaleDateString(undefined, { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
+  const fmtDay = (d) =>
+    new Date(d + 'T00:00:00Z').toLocaleDateString(undefined, { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
   const fmtStay = (p) => (p.to ? `${fmtDay(p.date)} – ${fmtDay(p.to)}` : fmtDay(p.date));
 
   function openPlaces() {
@@ -1212,7 +1365,8 @@
     $('place-form-title').textContent = form.index >= 0 ? 'Edit place' : 'Add a place';
     $('place-save').textContent = form.index >= 0 ? 'Save changes' : 'Add place';
     $('place-cancel').hidden = form.index < 0;
-    $('place-coords').textContent = form.lat == null ? 'No location yet: search above or pick it on the map.' : `📍 ${form.lat.toFixed(4)}, ${form.lng.toFixed(4)}`;
+    $('place-coords').textContent =
+      form.lat == null ? 'No location yet: search above or pick it on the map.' : `📍 ${form.lat.toFixed(4)}, ${form.lng.toFixed(4)}`;
   }
 
   function resetPlaceForm() {
@@ -1251,7 +1405,12 @@
 
   // Offline search over the bundled towns: exact name first, then capitals, then bigger places.
   const FOLD = { ø: 'o', æ: 'ae', œ: 'oe', ß: 'ss', ł: 'l', đ: 'd', ð: 'd', þ: 'th', ı: 'i' }; // letters NFD can't split
-  const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[øæœßłđðþı]/g, (c) => FOLD[c]);
+  const norm = (s) =>
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[øæœßłđðþı]/g, (c) => FOLD[c]);
   let searchIndex = null;
   function searchPlaces(q) {
     if (!searchIndex) searchIndex = TOWNS.map(([name, cc, lat, lng, pop, capital]) => [norm(name), name, cc, lat, lng, pop, capital]);
@@ -1286,7 +1445,10 @@
       const small = document.createElement('small');
       small.textContent = `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
       li.appendChild(small);
-      li.onmousedown = (e) => { e.preventDefault(); choose(i); };
+      li.onmousedown = (e) => {
+        e.preventDefault();
+        choose(i);
+      };
       box.appendChild(li);
     });
     box.hidden = suggestions.length === 0;
@@ -1348,7 +1510,9 @@
       renderPlaceForm();
     };
     const onClick = (e) => finish(e.lngLat);
-    const onKey = (e) => { if (e.key === 'Escape') finish(null); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') finish(null);
+    };
     map.on('click', onClick);
     window.addEventListener('keydown', onKey);
   };
@@ -1356,7 +1520,8 @@
   $('place-form').onsubmit = async (e) => {
     e.preventDefault();
     const name = $('place-search').value.trim();
-    const date = $('place-from').value, to = $('place-to').value;
+    const date = $('place-from').value,
+      to = $('place-to').value;
     if (!name) return placeMsg('Give the place a name.', 'err');
     if (form.lat == null) return placeMsg('Choose a location: search for a town or pick it on the map.', 'err');
     if (!date) return placeMsg('Enter the date you were there (or the first day).', 'err');
@@ -1380,11 +1545,13 @@
   $('place-cancel').onclick = resetPlaceForm;
   $('places-close').onclick = () => placesDlg.close();
 
-  const mapReady = new Promise((resolve) => map.on('load', () => {
-    addPinsLayer();
-    if (location.hash === '#pins') setView('pins'); // direct link to the pins view
-    resolve();
-  }));
+  const mapReady = new Promise((resolve) =>
+    map.on('load', () => {
+      addPinsLayer();
+      if (location.hash === '#pins') setView('pins'); // direct link to the pins view
+      resolve();
+    }),
+  );
   initSettings().then(async () => {
     if (state.server) return loadLibrary();
     await mapReady;

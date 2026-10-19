@@ -19,19 +19,20 @@
   }
 
   function mercY(lat) {
-    const s = Math.sin(Math.max(-85.0511, Math.min(85.0511, lat)) * Math.PI / 180);
+    const s = Math.sin((Math.max(-85.0511, Math.min(85.0511, lat)) * Math.PI) / 180);
     return 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI);
   }
 
   function latFromMercY(y) {
-    return Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180 / Math.PI;
+    return (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI;
   }
 
   // Projects the selected points/segments to Web Mercator [0..1] once.
   // include: Uint8Array mask over data points, or null for everything.
   function prepare(data, segPairs, include) {
     const n = data.lat.length;
-    const x = [], y = [];
+    const x = [],
+      y = [];
     for (let i = 0; i < n; i++) {
       if (include && !include[i]) continue;
       x.push(mercX(data.lng[i]));
@@ -39,7 +40,8 @@
     }
     const s = [];
     for (let k = 0; k < segPairs.length; k += 2) {
-      const a = segPairs[k], b = segPairs[k + 1];
+      const a = segPairs[k],
+        b = segPairs[k + 1];
       if (include && !(include[a] && include[b])) continue;
       s.push(mercX(data.lng[a]), mercY(data.lat[a]), mercX(data.lng[b]), mercY(data.lat[b]));
     }
@@ -57,7 +59,8 @@
     const seen = new Set();
     const px = [];
     for (let i = 0; i < prep.x.length; i++) {
-      const ix = cell(prep.x[i]), iy = cell(prep.y[i]);
+      const ix = cell(prep.x[i]),
+        iy = cell(prep.y[i]);
       const key = ix * n + iy;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -67,9 +70,12 @@
     const seenSeg = new Set();
     const ss = [];
     for (let i = 0; i < prep.seg.length; i += 4) {
-      const ax = cell(prep.seg[i]), ay = cell(prep.seg[i + 1]);
-      const bx = cell(prep.seg[i + 2]), by = cell(prep.seg[i + 3]);
-      const a = ax * n + ay, b = bx * n + by;
+      const ax = cell(prep.seg[i]),
+        ay = cell(prep.seg[i + 1]);
+      const bx = cell(prep.seg[i + 2]),
+        by = cell(prep.seg[i + 3]);
+      const a = ax * n + ay,
+        b = bx * n + by;
       if (a === b) continue; // fits inside one cell, the points cover it
       const key = a < b ? a + ':' + b : b + ':' + a;
       if (seenSeg.has(key)) continue;
@@ -92,12 +98,16 @@
     const places = new Set();
     const pn = 2 ** PLACES_LEVEL;
     const days = new Set();
-    let points = 0, visits = 0, first = Infinity, last = -Infinity;
+    let points = 0,
+      visits = 0,
+      first = Infinity,
+      last = -Infinity;
 
     for (let i = 0; i < data.lat.length; i++) {
       if (include && !include[i]) continue;
       points++;
-      const x = mercX(data.lng[i]), y = mercY(data.lat[i]);
+      const x = mercX(data.lng[i]),
+        y = mercY(data.lat[i]);
       addCell(x, y);
       if (data.kind[i] === KIND_VISIT) {
         visits++;
@@ -115,19 +125,22 @@
     // Walk each segment in half-cell steps so routes count as explored ground.
     const step = 0.5 / n;
     for (let k = 0; k < segPairs.length; k += 2) {
-      const a = segPairs[k], b = segPairs[k + 1];
+      const a = segPairs[k],
+        b = segPairs[k + 1];
       if (include && !(include[a] && include[b])) continue;
-      const ax = mercX(data.lng[a]), ay = mercY(data.lat[a]);
-      const bx = mercX(data.lng[b]), by = mercY(data.lat[b]);
+      const ax = mercX(data.lng[a]),
+        ay = mercY(data.lat[a]);
+      const bx = mercX(data.lng[b]),
+        by = mercY(data.lat[b]);
       const steps = Math.min(5000, Math.ceil(Math.hypot(bx - ax, by - ay) / step));
-      for (let s = 1; s < steps; s++) addCell(ax + (bx - ax) * s / steps, ay + (by - ay) * s / steps);
+      for (let s = 1; s < steps; s++) addCell(ax + ((bx - ax) * s) / steps, ay + ((by - ay) * s) / steps);
     }
 
     let areaM2 = 0;
     const side = EARTH_CIRCUMFERENCE_M / n;
     for (const key of cells) {
       const iy = key % n;
-      const cos = Math.cos(latFromMercY((iy + 0.5) / n) * Math.PI / 180);
+      const cos = Math.cos((latFromMercY((iy + 0.5) / n) * Math.PI) / 180);
       areaM2 += (side * cos) ** 2;
     }
 
@@ -212,7 +225,7 @@
       const ws = TILE_SIZE * 2 ** zoom;
       const ox = w / 2 - mercX(center.lng) * ws;
       const oy = h / 2 - mercY(center.lat) * ws;
-      const metersPerPx = EARTH_CIRCUMFERENCE_M * Math.cos(center.lat * Math.PI / 180) / ws;
+      const metersPerPx = (EARTH_CIRCUMFERENCE_M * Math.cos((center.lat * Math.PI) / 180)) / ws;
       const r = Math.max(MIN_RADIUS_PX, this.radiusM / metersPerPx);
 
       const m = this.maskCtx;
@@ -242,8 +255,10 @@
         m.beginPath();
         const seg = lv.seg;
         for (let i = 0; i < seg.length; i += 4) {
-          const ax = seg[i] * ws + ox, ay = seg[i + 1] * ws + oy;
-          const bx = seg[i + 2] * ws + ox, by = seg[i + 3] * ws + oy;
+          const ax = seg[i] * ws + ox,
+            ay = seg[i + 1] * ws + oy;
+          const bx = seg[i + 2] * ws + ox,
+            by = seg[i + 3] * ws + oy;
           if (Math.max(ax, bx) < -r || Math.min(ax, bx) > w + r) continue;
           if (Math.max(ay, by) < -r || Math.min(ay, by) > h + r) continue;
           m.moveTo(ax, ay);

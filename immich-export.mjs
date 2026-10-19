@@ -14,8 +14,9 @@ const apiKey = process.env.IMMICH_API_KEY;
 const outPath = process.argv[2] || 'immich-photos.json';
 
 if (!url || !apiKey) {
-  console.error('Set IMMICH_URL and IMMICH_API_KEY, e.g.\n' +
-    '  IMMICH_URL=https://photos.example.com IMMICH_API_KEY=xxxx node immich-export.mjs');
+  console.error(
+    'Set IMMICH_URL and IMMICH_API_KEY, e.g.\n' + '  IMMICH_URL=https://photos.example.com IMMICH_API_KEY=xxxx node immich-export.mjs',
+  );
   process.exit(1);
 }
 

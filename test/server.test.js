@@ -26,9 +26,10 @@ function startImmich() {
     req.on('end', () => {
       const item = (lat, lng, t) => ({ fileCreatedAt: t, exifInfo: { latitude: lat, longitude: lng, dateTimeOriginal: t } });
       const page = JSON.parse(body || '{}').page;
-      const out = page === 1
-        ? { assets: { items: [item(52.23, 21.01, '2024-01-01T10:00:00Z'), item(null, null, '2024-01-02T10:00:00Z')], nextPage: '2' } }
-        : { assets: { items: [item(35.34, 33.32, '2024-05-01T10:00:00Z')], nextPage: null } };
+      const out =
+        page === 1
+          ? { assets: { items: [item(52.23, 21.01, '2024-01-01T10:00:00Z'), item(null, null, '2024-01-02T10:00:00Z')], nextPage: '2' } }
+          : { assets: { items: [item(35.34, 33.32, '2024-05-01T10:00:00Z')], nextPage: null } };
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(out));
     });
@@ -75,14 +76,24 @@ test('server', async (t) => {
 
   await t.test('everything else needs the login', async () => {
     assert.equal((await fetch(base + '/')).status, 401);
-    assert.equal((await fetch(base + '/', { headers: { authorization: 'Basic ' + Buffer.from('me:nope').toString('base64') } })).status, 401);
+    assert.equal(
+      (await fetch(base + '/', { headers: { authorization: 'Basic ' + Buffer.from('me:nope').toString('base64') } })).status,
+      401,
+    );
     const res = await req('/');
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
   });
 
   await t.test('serves only the app files', async () => {
-    for (const p of ['/index.html', '/app.js', '/icon.svg', '/manifest.webmanifest', '/vendor/maplibre-gl/maplibre-gl.js', '/vendor/maplibre-gl/maplibre-gl.css']) {
+    for (const p of [
+      '/index.html',
+      '/app.js',
+      '/icon.svg',
+      '/manifest.webmanifest',
+      '/vendor/maplibre-gl/maplibre-gl.js',
+      '/vendor/maplibre-gl/maplibre-gl.css',
+    ]) {
       assert.equal((await req(p)).status, 200, p);
     }
     const html = await (await req('/')).text();
@@ -113,7 +124,11 @@ test('server', async (t) => {
   });
 
   await t.test('refuses non-JSON requests (cross-site form posts)', async () => {
-    const res = await req('/api/settings/immich', { method: 'POST', body: 'url=http://evil', headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+    const res = await req('/api/settings/immich', {
+      method: 'POST',
+      body: 'url=http://evil',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    });
     assert.equal(res.status, 415);
   });
 
@@ -135,7 +150,13 @@ test('server', async (t) => {
   await t.test('serves photo locations from Immich', async () => {
     const body = await (await req('/api/immich')).json();
     assert.equal(body.source, 'immich');
-    assert.deepEqual(body.photos.map((p) => [p.lat, p.lng]), [[52.23, 21.01], [35.34, 33.32]]);
+    assert.deepEqual(
+      body.photos.map((p) => [p.lat, p.lng]),
+      [
+        [52.23, 21.01],
+        [35.34, 33.32],
+      ],
+    );
     const cacheFile = path.join(dataDir, 'immich-cache.json');
     assert.equal(JSON.parse(JSON.parse(fs.readFileSync(cacheFile, 'utf8')).body).photos.length, 2, 'saved for restarts');
     if (process.platform !== 'win32') assert.equal(fs.statSync(cacheFile).mode & 0o777, 0o600);
@@ -164,7 +185,13 @@ test('server', async (t) => {
 
   await t.test('stores uploaded location files', async () => {
     assert.deepEqual(await (await req('/api/sources')).json(), { sources: [] });
-    const res = await upload('Timeline.json', blob([[52.2, 21.0, 1e12, 0], [52.3, 21.1, NaN, 1]]));
+    const res = await upload(
+      'Timeline.json',
+      blob([
+        [52.2, 21.0, 1e12, 0],
+        [52.3, 21.1, NaN, 1],
+      ]),
+    );
     assert.equal(res.status, 201);
     const { source } = await res.json();
     assert.equal(source.name, 'Timeline.json');
@@ -173,7 +200,13 @@ test('server', async (t) => {
     const got = await req('/api/sources/' + source.id);
     assert.equal(got.status, 200);
     const back = Buffer.from(await got.arrayBuffer());
-    assert.deepEqual(back, blob([[52.2, 21.0, 1e12, 0], [52.3, 21.1, NaN, 1]]));
+    assert.deepEqual(
+      back,
+      blob([
+        [52.2, 21.0, 1e12, 0],
+        [52.3, 21.1, NaN, 1],
+      ]),
+    );
 
     const again = await req('/api/sources/' + source.id, { headers: { 'if-none-match': got.headers.get('etag') } });
     assert.equal(again.status, 304);
@@ -203,12 +236,20 @@ test('server', async (t) => {
   });
 
   await t.test('stores and validates places', async () => {
-    const put = (places) => req('/api/places', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ places }) });
-    const good = [{ name: ' San Marino ', lat: 43.9, lng: 12.4, date: '2015-07-20' }, { name: 'London', lat: 51.5, lng: -0.1, date: '2010-11-08', to: '2010-11-21' }];
+    const put = (places) =>
+      req('/api/places', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ places }) });
+    const good = [
+      { name: ' San Marino ', lat: 43.9, lng: 12.4, date: '2015-07-20' },
+      { name: 'London', lat: 51.5, lng: -0.1, date: '2010-11-08', to: '2010-11-21' },
+    ];
     assert.equal((await put(good)).status, 200);
     assert.deepEqual((await (await req('/api/places')).json()).places[0], { name: 'San Marino', lat: 43.9, lng: 12.4, date: '2015-07-20' });
-    for (const bad of [[{ name: '', lat: 1, lng: 1, date: '2015-01-01' }], [{ name: 'X', lat: 99, lng: 1, date: '2015-01-01' }],
-      [{ name: 'X', lat: 1, lng: 1, date: '20.07.2015' }], [{ name: 'X', lat: 1, lng: 1, date: '2015-02-01', to: '2015-01-01' }]]) {
+    for (const bad of [
+      [{ name: '', lat: 1, lng: 1, date: '2015-01-01' }],
+      [{ name: 'X', lat: 99, lng: 1, date: '2015-01-01' }],
+      [{ name: 'X', lat: 1, lng: 1, date: '20.07.2015' }],
+      [{ name: 'X', lat: 1, lng: 1, date: '2015-02-01', to: '2015-01-01' }],
+    ]) {
       assert.equal((await put(bad)).status, 400, JSON.stringify(bad));
     }
     assert.equal((await (await req('/api/places')).json()).places.length, 2);
@@ -216,22 +257,35 @@ test('server', async (t) => {
 
   await t.test('OwnTracks appends phone locations to a source', async () => {
     const PHONE = 'Basic ' + Buffer.from('phone:pw2').toString('base64');
-    const post = (msg, authorization = PHONE) => fetch(base + '/api/owntracks', {
-      method: 'POST', headers: { authorization, 'content-type': 'application/json' }, body: JSON.stringify(msg),
-    });
+    const post = (msg, authorization = PHONE) =>
+      fetch(base + '/api/owntracks', {
+        method: 'POST',
+        headers: { authorization, 'content-type': 'application/json' },
+        body: JSON.stringify(msg),
+      });
     assert.equal((await post({ _type: 'location', lat: 1, lon: 2, tst: 1 }, AUTH)).status, 401);
     assert.equal((await fetch(base + '/', { headers: { authorization: PHONE } })).status, 401);
     const first = await post({ _type: 'location', lat: 52.2, lon: 21.0, tst: 1700000000, acc: 5 });
     assert.equal(first.status, 200);
     assert.deepEqual(await first.json(), []);
-    await Promise.all([post({ _type: 'location', lat: 52.3, lon: 21.1, tst: 1700000060 }), post({ _type: 'location', lat: 52.4, lon: 21.2, tst: 1700000120 })]);
+    await Promise.all([
+      post({ _type: 'location', lat: 52.3, lon: 21.1, tst: 1700000060 }),
+      post({ _type: 'location', lat: 52.4, lon: 21.2, tst: 1700000120 }),
+    ]);
     assert.equal((await post({ _type: 'lwt', tst: 1 })).status, 200);
     assert.equal((await post({ _type: 'location', lat: 95, lon: 0, tst: 1 })).status, 400);
     const { sources } = await (await req('/api/sources')).json();
     const src = sources.find((s) => s.name === 'OwnTracks');
     assert.equal(src.points, 3);
     const back = Buffer.from(await (await req('/api/sources/' + src.id)).arrayBuffer());
-    assert.deepEqual(back.subarray(0, 4 + 8), blob([[52.2, 21.0, 1700000000000, 0], [0, 0, 0, 0], [0, 0, 0, 0]]).subarray(0, 4 + 8));
+    assert.deepEqual(
+      back.subarray(0, 4 + 8),
+      blob([
+        [52.2, 21.0, 1700000000000, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+      ]).subarray(0, 4 + 8),
+    );
     assert.equal(back.readDoubleLE(4 + 2 * 3 * 8), 1700000000000);
     assert.equal(back.length, 4 + 3 * 25);
     const { owntracks } = await (await req('/api/settings')).json();

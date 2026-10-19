@@ -77,7 +77,10 @@ test('manual places: date-only means local midday, always kind MANUAL', () => {
 
 test('manual places: date..to range gives one point per day', () => {
   const d = parse({ source: 'manual', places: [{ lat: 51.5, lng: -0.12, date: '2010-10-30', to: '2010-11-02' }] });
-  assert.deepEqual(Array.from(d.t), [30, 31, 32, 33].map((day) => new Date(2010, 9, day, 12).getTime()));
+  assert.deepEqual(
+    Array.from(d.t),
+    [30, 31, 32, 33].map((day) => new Date(2010, 9, day, 12).getTime()),
+  );
 });
 
 test('unknown JSON yields no points', () => {

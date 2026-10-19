@@ -9,15 +9,20 @@ function toPhoto(lat, lng, time, exif = {}) {
   return { lat, lng, time: time || null, city: exif.city || null, country: exif.country || null };
 }
 
-export const normalizeUrl = (url) => url.trim().replace(/\/+$/, '').replace(/\/api$/, '');
+export const normalizeUrl = (url) =>
+  url
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/api$/, '');
 
 // Checks URL + key with a cheap call. Resolves to { user }, rejects with a message fit for the UI.
 export async function checkImmich({ url, apiKey }) {
   const base = normalizeUrl(url);
-  const get = (path) => fetch(base + path, {
-    headers: { 'x-api-key': apiKey, accept: 'application/json' },
-    signal: AbortSignal.timeout(10000),
-  });
+  const get = (path) =>
+    fetch(base + path, {
+      headers: { 'x-api-key': apiKey, accept: 'application/json' },
+      signal: AbortSignal.timeout(10000),
+    });
   let res;
   try {
     res = await get('/api/users/me');
