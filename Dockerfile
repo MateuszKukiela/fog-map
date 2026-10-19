@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM node:22-alpine
+FROM node:26-alpine
 
 # Alpine drops old package versions from its index, so a pinned version would break future builds.
 # hadolint ignore=DL3018
