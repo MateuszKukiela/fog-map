@@ -1,0 +1,40 @@
+# Run once: uv tool install pre-commit && pre-commit install
+# Everything:  uvx pre-commit run --all-files   (CI runs the same)
+exclude: ^(vendor/|test/fixtures/|(countries|cities|towns|airports|tcc)\.js$)
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+      - id: check-added-large-files
+      - id: detect-private-key
+
+  # Lint and format JavaScript, JSON, CSS and HTML (config: biome.json)
+  - repo: https://github.com/biomejs/pre-commit
+    rev: v2.5.15
+    hooks:
+      - id: biome-check
+        additional_dependencies: ['@biomejs/biome@2.5.15']
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.15.1
+    hooks:
+      - id: hadolint-docker
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck

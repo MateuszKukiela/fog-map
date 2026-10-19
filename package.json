@@ -4,10 +4,16 @@
   "description": "Self-hosted map of everywhere you've been, from Google Timeline and Immich photos.",
   "license": "MIT",
   "private": true,
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "lint": "uvx pre-commit run --all-files"
   },
-  "repository": { "type": "git", "url": "git+https://github.com/MateuszKukiela/fog-map.git" }
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MateuszKukiela/fog-map.git"
+  }
 }

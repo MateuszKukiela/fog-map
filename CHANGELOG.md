@@ -3,6 +3,18 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+
+- Lint and format checks with pre-commit (run through uv): Biome for JavaScript, JSON, CSS and HTML,
+  actionlint, hadolint, shellcheck and file hygiene hooks. CI runs them before tests and the image build.
+
+### Fixed
+
+- Buttons outside forms declare `type="button"`; the OwnTracks setup control is a real button.
+- The Docker health check no longer needs a shell.
+
 ## [1.5.0] - 2026-10-19
 
 ### Changed

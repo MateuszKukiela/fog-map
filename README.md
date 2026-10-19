@@ -175,7 +175,13 @@ No dependencies, no build. Node 20+.
 ```sh
 npm test          # parser and server tests
 npm start         # http://localhost:8080
+npm run lint      # every check CI runs: Biome, actionlint, hadolint, shellcheck, file hygiene
 ```
+
+Checks run through [pre-commit](https://pre-commit.com) with [uv](https://docs.astral.sh/uv/); install
+the git hook once with `uv tool install pre-commit && pre-commit install`. Biome (lint and format,
+configured in `biome.json`) runs in pre-commit's own Node environment, so the project still has no npm
+dependencies.
 
 `index.html` also works opened straight from disk; then drop files on it, and export Immich photos with
 `IMMICH_URL=… IMMICH_API_KEY=… node immich-export.mjs`.

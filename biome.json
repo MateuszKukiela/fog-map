@@ -1,0 +1,22 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": ["**", "!vendor", "!test/fixtures", "!countries.js", "!cities.js", "!towns.js", "!airports.js", "!tcc.js"]
+  },
+  "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 140 },
+  "javascript": { "formatter": { "quoteStyle": "single" } },
+  "linter": {
+    "rules": {
+      "preset": "recommended",
+      "style": { "useTemplate": "off", "noDescendingSpecificity": "off" },
+      "complexity": { "useArrowFunction": "off", "noImportantStyles": "off" }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["app.js", "fog.js", "parser.js"],
+      "linter": { "rules": { "suspicious": { "noRedundantUseStrict": "off" } } }
+    }
+  ]
+}
