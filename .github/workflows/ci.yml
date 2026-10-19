@@ -117,7 +117,7 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           awk -v v="$version" '$0 ~ "^## \\[?"v"\\]?" {f=1; next} /^## / {f=0} f' CHANGELOG.md > notes.md
-          printf '\n**Image:** `ghcr.io/%s:%s`\n' "${GITHUB_REPOSITORY,,}" "$version" >> notes.md
+          printf "\n**Image:** \`ghcr.io/%s:%s\`\n" "${GITHUB_REPOSITORY,,}" "$version" >> notes.md
       - run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag
         env:
           GH_TOKEN: ${{ github.token }}
