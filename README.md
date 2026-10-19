@@ -67,8 +67,8 @@ docker compose up -d
 1. In Immich: **Account Settings → API Keys → New API Key**. Read access to assets is enough.
 2. In Fog Map: **⚙ → Immich**, enter the server URL and the key, click **Test connection**, then **Save**.
 
-Photos load automatically every time you open the page; results are cached on the server for 6 hours
-and **Sync now** refreshes them. The API key is stored on the server only and is never sent back to the browser.
+Photos load automatically every time you open the page; results are saved on the server and refreshed in the
+background every 6 hours, so the page never waits for a sync; **Sync now** refreshes them right away. The API key is stored on the server only and is never sent back to the browser.
 
 ### Google Timeline
 
@@ -130,7 +130,7 @@ Everything can be set in the page. Environment variables are optional:
 | `BASIC_AUTH` | — | `user:password` login for the whole site. **Set it whenever anyone else can reach the page.** |
 | `OWNTRACKS_AUTH` | — | `user:password` for `/api/owntracks` only (the phone app). Without it, `BASIC_AUTH` applies there. |
 | `IMMICH_URL`, `IMMICH_API_KEY` | — | Starting values for the Immich connection. Settings saved in the page take precedence. |
-| `IMMICH_REFRESH_HOURS` | `6` | How long Immich results are cached on the server. |
+| `IMMICH_REFRESH_HOURS` | `6` | After this long, Immich results are refreshed in the background; the saved copy is served meanwhile. |
 | `DATA_DIR` | `/data` | Settings, uploaded location data and places. Mount a volume here and back it up. |
 | `PORT` | `8080` | HTTP port inside the container. |
 
@@ -141,8 +141,8 @@ Image tags: `latest` and `1`, `1.0`, `1.0.0` for releases, `edge` for the newest
 - **Use `BASIC_AUTH` or put the app behind your own authentication** (Authelia, Authentik, Cloudflare Access…)
   if it's reachable by anyone but you. The map shows where every one of your photos was taken, and the
   settings let visitors change the Immich connection.
-- Everything is stored in `DATA_DIR`: `settings.json` (Immich key), `sources/` (uploaded location data) and
-  `places.json`. Files are written with `0600` permissions; treat the volume like your photo library.
+- Everything is stored in `DATA_DIR`: `settings.json` (Immich key), `sources/` (uploaded location data),
+  `places.json` and `immich-cache.json` (photo locations, so restarts don't trigger a full sync). Files are written with `0600` permissions; treat the volume like your photo library.
 - The Immich API key is never returned by the API.
   Changing the server URL requires entering the key again, so a saved key can't be redirected to another host.
 - Every write needs a JSON or binary request type, which other websites can't forge from your browser,

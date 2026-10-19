@@ -699,8 +699,12 @@
   const placesPart = () =>
     state.places.length ? [{ name: 'Places', kind: 'places', data: parse({ source: 'manual', places: state.places }) }] : [];
 
+  // Files, places and Immich photos download in parallel, without waiting for the base map,
+  // and the map is computed once when everything is in.
   async function loadLibrary() {
     setStatus('Loading your data…');
+    let photosError = null;
+    const photos = fetchImmich().catch((err) => { photosError = err; });
     try {
       const [{ sources }, { places }] = await Promise.all([api('GET', 'api/sources'), api('GET', 'api/places')]);
       const files = await Promise.all(sources.map(async (s) => {
@@ -708,10 +712,12 @@
         if (!res.ok) throw new Error(`could not load ${s.name}`);
         return { name: s.name, kind: 'file', id: s.id, data: decodePoints(await res.arrayBuffer()) };
       }));
+      const immich = await photos;
+      await mapReady;
       state.places = places;
-      state.parts = [...files, ...placesPart(), ...state.parts.filter((p) => p.kind === 'immich')];
+      state.parts = [...files, ...placesPart(), ...(immich ? [immich] : [])];
       if (!sources.length && !places.length) await moveLocalToServer();
-      setStatus('');
+      setStatus(photosError ? `Immich: ${photosError.message}` : '', !!photosError);
       if (state.parts.length) rebuild(true);
     } catch (err) {
       setStatus(`Could not load your data from the server: ${err.message}`, true);
@@ -1002,26 +1008,29 @@
   // Self-hosted (server.mjs): photo locations straight from Immich on every visit.
   // Opened as a local file or on a plain static host, the endpoint isn't there and this does nothing.
   const IMMICH_PART = 'Immich (live)';
+  // The Immich part, or null when Immich isn't connected; throws when it fails.
+  async function fetchImmich(refresh) {
+    if (location.protocol === 'file:') return null;
+    const res = await fetch(refresh ? 'api/immich?refresh=1' : 'api/immich');
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'HTTP ' + res.status);
+    return { name: IMMICH_PART, kind: 'immich', data: parse(await res.json()) };
+  }
+
+  // Settings dialog: (re)load photos on their own after saving or Sync now.
   async function loadImmich(refresh) {
-    if (location.protocol === 'file:') return;
     try {
       setStatus('Loading photos from Immich…');
-      const res = await fetch(refresh ? 'api/immich?refresh=1' : 'api/immich');
-      if (!res.ok) {
-        const err = res.status === 404 ? '' : `Immich: ${(await res.json().catch(() => ({}))).error || 'HTTP ' + res.status}`;
-        setStatus(err, !!err);
-        return;
-      }
-      const d = parse(await res.json());
+      const part = await fetchImmich(refresh);
+      setStatus('');
+      if (!part) return;
       const first = !state.parts.length;
       state.parts = state.parts.filter((p) => p.name !== IMMICH_PART);
-      state.parts.push({ name: IMMICH_PART, kind: 'immich', data: d });
-      setStatus('');
+      state.parts.push(part);
       rebuild(first);
-      return d.lat.length;
+      return part.data.lat.length;
     } catch (err) {
-      setStatus('');
-      console.warn('Immich', err);
+      setStatus(`Immich: ${err.message}`, true);
     }
   }
 
@@ -1366,12 +1375,14 @@
   $('place-cancel').onclick = resetPlaceForm;
   $('places-close').onclick = () => placesDlg.close();
 
-  const settingsReady = initSettings();
-  map.on('load', async () => {
+  const mapReady = new Promise((resolve) => map.on('load', () => {
     addPinsLayer();
     if (location.hash === '#pins') setView('pins'); // direct link to the pins view
-    await settingsReady;
-    await (state.server ? loadLibrary() : restore());
-    loadImmich();
+    resolve();
+  }));
+  initSettings().then(async () => {
+    if (state.server) return loadLibrary();
+    await mapReady;
+    restore();
   });
 })();

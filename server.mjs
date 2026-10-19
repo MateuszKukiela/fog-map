@@ -12,10 +12,11 @@
 //                                /api/immich returns where all your photos were taken.
 //   OWNTRACKS_AUTH=user:password Optional separate login for /api/owntracks only (the phone app), so the
 //                                endpoint can skip a forward-auth proxy. Without it, BASIC_AUTH applies.
-//   IMMICH_REFRESH_HOURS=6       How long Immich results are cached in memory.
+//   IMMICH_REFRESH_HOURS=6       After this long, Immich results are refreshed in the background
+//                                (the saved copy is served meanwhile, so pages never wait for a sync).
 //   PORT=8080
 import http from 'node:http';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { timingSafeEqual, createHash } from 'node:crypto';
@@ -29,6 +30,7 @@ const { IMMICH_URL, IMMICH_API_KEY, BASIC_AUTH, OWNTRACKS_AUTH } = process.env;
 const REFRESH_MS = (Number(process.env.IMMICH_REFRESH_HOURS) || 6) * 3600 * 1000;
 const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, 'data');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+const IMMICH_CACHE_FILE = path.join(DATA_DIR, 'immich-cache.json');
 
 // Current Immich connection. The key never leaves this process except toward Immich itself.
 let immich = IMMICH_URL && IMMICH_API_KEY ? { url: normalizeUrl(IMMICH_URL), apiKey: IMMICH_API_KEY, source: 'env' } : null;
@@ -232,31 +234,53 @@ async function ownTracks(req) {
   await library.append(OWNTRACKS_SOURCE, [[lat, lng, t]]);
 }
 
-let cache = null; // { at, body }
+let cache = null; // { at, url, body }, also saved to IMMICH_CACHE_FILE so a restart doesn't mean a 15 s sync
 let inflight = null;
 let generation = 0; // bumped on every settings change so a slow old fetch can't overwrite new data
+
+async function loadImmichCache() {
+  try {
+    const saved = JSON.parse(await readFile(IMMICH_CACHE_FILE, 'utf8'));
+    if (immich && saved.url === immich.url) cache = saved;
+  } catch (err) {
+    if (err.code !== 'ENOENT') console.error('Could not read the Immich cache:', err.message);
+  }
+}
 
 function resetImmich() {
   generation++;
   cache = null;
   inflight = null;
+  rm(IMMICH_CACHE_FILE, { force: true }).catch(() => {});
 }
 
-function immichJson(force) {
-  if (cache && !force && Date.now() - cache.at < REFRESH_MS) return Promise.resolve(cache.body);
+function syncImmich() {
   if (!inflight) {
     const started = Date.now();
     const gen = generation;
     inflight = fetchImmichPhotos({ url: immich.url, apiKey: immich.apiKey })
-      .then((data) => {
+      .then(async (data) => {
         const body = JSON.stringify(data);
-        if (gen === generation) cache = { at: Date.now(), body };
+        if (gen === generation) {
+          cache = { at: Date.now(), url: immich.url, body };
+          await mkdir(DATA_DIR, { recursive: true })
+            .then(() => writeFile(IMMICH_CACHE_FILE, JSON.stringify(cache), { mode: 0o600 }))
+            .catch((err) => console.error('Could not save the Immich cache:', err.message));
+        }
         console.log(`Immich: ${data.photos.length} geotagged photos in ${((Date.now() - started) / 1000).toFixed(1)} s`);
         return body;
       })
       .finally(() => { if (gen === generation) inflight = null; });
   }
   return inflight;
+}
+
+// Serves the saved result right away and refreshes it in the background once it's stale;
+// only the very first sync (or Sync now) makes the page wait.
+function immichJson(force) {
+  if (!cache || force) return syncImmich();
+  if (Date.now() - cache.at >= REFRESH_MS) syncImmich().catch((err) => console.error('Immich:', err.message));
+  return Promise.resolve(cache.body);
 }
 
 function send(res, status, type, body) {
@@ -342,11 +366,12 @@ const server = http.createServer(async (req, res) => {
 });
 
 await loadSettings();
+await loadImmichCache();
 await library.load();
 server.listen(PORT, () => {
   console.log(`fog-map on :${server.address().port}` + (immich ? `, Immich at ${immich.url}` : ', Immich not configured') + (expectedAuth ? ', login required' : ''));
   if (!expectedAuth) console.warn('No BASIC_AUTH set: anyone who can reach this port can see your photo locations and change settings.');
-  if (immich) immichJson(false).catch(() => {}); // warm the cache
+  if (immich) immichJson(false).catch((err) => console.error('Immich:', err.message)); // warm the cache
 });
 
 // Stop cleanly on `docker stop` / Ctrl-C instead of waiting to be killed.

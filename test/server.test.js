@@ -136,6 +136,9 @@ test('server', async (t) => {
     const body = await (await req('/api/immich')).json();
     assert.equal(body.source, 'immich');
     assert.deepEqual(body.photos.map((p) => [p.lat, p.lng]), [[52.23, 21.01], [35.34, 33.32]]);
+    const cacheFile = path.join(dataDir, 'immich-cache.json');
+    assert.equal(JSON.parse(JSON.parse(fs.readFileSync(cacheFile, 'utf8')).body).photos.length, 2, 'saved for restarts');
+    if (process.platform !== 'win32') assert.equal(fs.statSync(cacheFile).mode & 0o777, 0o600);
   });
 
   await t.test('saved key is reused only for the same server', async () => {
@@ -241,5 +244,6 @@ test('server', async (t) => {
     assert.equal(res.status, 200);
     assert.equal(JSON.parse(fs.readFileSync(path.join(dataDir, 'settings.json'), 'utf8')).immich, null);
     assert.equal((await req('/api/immich')).status, 404);
+    assert.ok(!fs.existsSync(path.join(dataDir, 'immich-cache.json')), 'saved photos are deleted too');
   });
 });

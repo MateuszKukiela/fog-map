@@ -3,6 +3,16 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org).
 
+## [1.5.0] - 2026-10-19
+
+### Changed
+
+- Faster page load: your files, places and Immich photos download in parallel without waiting for the
+  base map, and the map is computed once instead of twice.
+- Immich results are saved in `/data` and served instantly; when they're older than
+  `IMMICH_REFRESH_HOURS` they refresh in the background. Restarts no longer mean a full sync on the
+  next visit, and a page load never waits for one (except the very first, or **Sync now**).
+
 ## [1.4.2] - 2026-10-18
 
 ### Fixed
@@ -96,6 +106,7 @@ First public release.
 - Noise cleanup: in-flight points, geolocation teleports, one-off countries, airport layovers.
 - Docker image for linux/amd64 and linux/arm64 with health check, optional basic auth and SBOM/provenance attestations.
 
+[1.5.0]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.5.0
 [1.4.2]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.4.2
 [1.4.1]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.4.1
 [1.4.0]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.4.0
