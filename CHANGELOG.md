@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-25
+
 ### Added
 
 - Lint and format checks with pre-commit (run through uv): Biome for JavaScript, JSON, CSS and HTML,
@@ -12,6 +14,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The map no longer stutters while panning and zooming in browsers that draw the fog on the CPU
+  (Firefox, Safari): the fog is now blurred at reduced resolution, about twice as fast per frame.
 - Buttons outside forms declare `type="button"`; the OwnTracks setup control is a real button.
 - The Docker health check no longer needs a shell.
 
@@ -118,6 +122,7 @@ First public release.
 - Noise cleanup: in-flight points, geolocation teleports, one-off countries, airport layovers.
 - Docker image for linux/amd64 and linux/arm64 with health check, optional basic auth and SBOM/provenance attestations.
 
+[1.5.1]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.5.1
 [1.5.0]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.5.0
 [1.4.2]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.4.2
 [1.4.1]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.4.1

@@ -202,10 +202,10 @@
       const el = this.map.getContainer();
       this.w = el.clientWidth;
       this.h = el.clientHeight;
-      this.dpr = window.devicePixelRatio || 1;
+      // CSS px, not device px: fog edges are soft, and 4x the pixels on retina dropped frames.
       for (const c of [this.canvas, this.mask]) {
-        c.width = Math.round(this.w * this.dpr);
-        c.height = Math.round(this.h * this.dpr);
+        c.width = this.w;
+        c.height = this.h;
       }
       this.canvas.style.width = this.w + 'px';
       this.canvas.style.height = this.h + 'px';
@@ -221,16 +221,22 @@
       this.dirty = false;
       this.lastCamera = camera;
 
-      const { w, h, dpr } = this;
+      const { w, h } = this;
       const ws = TILE_SIZE * 2 ** zoom;
       const ox = w / 2 - mercX(center.lng) * ws;
       const oy = h / 2 - mercY(center.lat) * ws;
       const metersPerPx = (EARTH_CIRCUMFERENCE_M * Math.cos((center.lat * Math.PI) / 180)) / ws;
       const r = Math.max(MIN_RADIUS_PX, this.radiusM / metersPerPx);
+      // Blur a downscaled mask: canvas blur often runs on the CPU and costs per pixel,
+      // so blurring at full retina size dropped frames. The blur hides the lower resolution.
+      const blur = Math.min(14, r * 0.35);
+      const s = Math.min(1, 3 / blur); // mask px per CSS px
 
       const m = this.maskCtx;
-      m.setTransform(dpr, 0, 0, dpr, 0, 0);
-      m.clearRect(0, 0, w, h);
+      m.setTransform(1, 0, 0, 1, 0, 0);
+      m.clearRect(0, 0, this.mask.width, this.mask.height);
+      m.setTransform(s, 0, 0, s, 0, 0);
+      m.filter = blur * s >= 0.5 ? `blur(${(blur * s).toFixed(1)}px)` : 'none';
 
       if (this.prep) {
         const cellPx = Math.max(1.5, r / 3);
@@ -266,20 +272,19 @@
         }
         m.stroke();
       }
+      m.filter = 'none';
 
       const c = this.ctx;
+      const cw = this.canvas.width,
+        ch = this.canvas.height;
       c.setTransform(1, 0, 0, 1, 0, 0);
       c.globalCompositeOperation = 'source-over';
-      c.filter = 'none';
-      c.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      c.clearRect(0, 0, cw, ch);
       c.fillStyle = `rgba(${this.color.join(',')},${this.opacity})`;
-      c.fillRect(0, 0, this.canvas.width, this.canvas.height);
-      // Cut the revealed areas out of the fog, blurred for soft edges.
+      c.fillRect(0, 0, cw, ch);
+      // Cut the revealed areas out of the fog, upscaling the soft mask.
       c.globalCompositeOperation = 'destination-out';
-      const blur = Math.min(14, r * 0.35) * dpr;
-      if (blur >= 0.5) c.filter = `blur(${blur.toFixed(1)}px)`;
-      c.drawImage(this.mask, 0, 0);
-      c.filter = 'none';
+      c.drawImage(this.mask, 0, 0, Math.ceil(w * s), Math.ceil(h * s), 0, 0, cw, ch);
       c.globalCompositeOperation = 'source-over';
     }
   }
