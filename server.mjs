@@ -194,6 +194,7 @@ const STATIC = {
       'app.js',
       'parser.js',
       'fog.js',
+      'day.js',
       'countries.js',
       'airports.js',
       'tcc.js',

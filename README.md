@@ -24,6 +24,7 @@ the only outside requests are map tiles.
 
 - **Fog of war** — your GPS tracks, visits and photos reveal the map; adjustable reveal radius and fog density.
 - **Wall-map pins** — a red push-pin on every city and every place you actually stopped at (not the ones you just drove through). Tap a pin to see when you were there.
+- **Day by day** — open any day to see its route colored by time of day, the places you stopped and for how long; drag through the hours or press play to retrace it. A calendar shows which days you moved most.
 - **Immich integration** — enter your server URL and API key in the settings; geotagged photos appear automatically and stay in sync.
 - **Google Timeline** — reads the on-device Timeline export from Android and iPhone, plus legacy Takeout `Records.json` and Semantic Location History.
 - **Counters** — countries with flags, cities over 100k people, [Travelers' Century Club](https://travelerscenturyclub.org) territories (n / 330) and days abroad per year. Your home country is detected automatically.
@@ -193,6 +194,7 @@ dependencies.
 | `immich.mjs` | Immich API client (shared with `immich-export.mjs`) |
 | `parser.js` | Reads every supported export format |
 | `fog.js` | Fog rendering and exploration statistics |
+| `day.js` | Day view: points per day, route, stops |
 | `app.js` | UI, counters, pins, noise cleanup |
 | `countries.js`, `tcc.js`, `cities.js`, `towns.js`, `airports.js` | Bundled reference data |
 | `vendor/maplibre-gl/` | [MapLibre GL JS](https://maplibre.org) 4.7.1 (BSD-3-Clause), bundled so pages load no third-party scripts |

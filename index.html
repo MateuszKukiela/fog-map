@@ -166,7 +166,64 @@
     background: rgba(8, 11, 24, .7); border: 3px dashed var(--accent); font-size: 22px; }
   body.dragging .dropzone { display: grid; }
 
+  /* Day view: a player bar at the bottom of the map. */
+  .daybar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 3; width: min(720px, calc(100% - 32px));
+    background: var(--panel); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--line);
+    border-radius: 14px; padding: 12px 14px 10px; box-shadow: 0 12px 40px rgba(0,0,0,.45); }
+  .daybar[hidden] { display: none; }
+  .day-head { display: flex; align-items: center; gap: 6px; }
+  .day-head .spacer { flex: 1; }
+  .day-btn { font: inherit; display: grid; place-items: center; min-width: 30px; height: 30px; padding: 0 6px; border-radius: 8px;
+    border: 1px solid var(--line); background: transparent; color: var(--text); cursor: pointer; font-size: 16px; }
+  .day-btn:hover:not(:disabled), .day-date:hover { background: rgba(255,255,255,.06); }
+  .day-btn:disabled { opacity: .3; cursor: default; }
+  .day-date { font: inherit; font-size: 16px; font-weight: 600; background: none; border: 0; color: var(--text); cursor: pointer;
+    padding: 4px 8px; border-radius: 8px; }
+  .day-date::after { content: ' ▾'; color: var(--muted); font-size: 12px; }
+  .day-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+  .day-chips span { font-size: 12px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
+  .day-chips b { color: var(--text); font-weight: 600; }
+  .day-play { display: flex; align-items: center; gap: 12px; }
+  .day-playbtn { flex: none; width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--accent); color: #07112a;
+    font-size: 15px; cursor: pointer; display: grid; place-items: center; }
+  .day-track { position: relative; flex: 1; height: 44px; }
+  .day-rail { position: absolute; left: 0; right: 0; top: 14px; height: 6px; border-radius: 3px; opacity: .9;
+    background: linear-gradient(90deg, #3b4a9a, #7cc4ff 25%, #ffd27c 50%, #ff8a5c 75%, #6a4fb3);
+    background: linear-gradient(90deg in oklch, #3b4a9a, #7cc4ff 25%, #ffd27c 50%, #ff8a5c 75%, #6a4fb3); }
+  .day-stop { position: absolute; top: 11px; height: 12px; min-width: 3px; border-radius: 3px; background: rgba(255,255,255,.88); pointer-events: none; }
+  .day-track input { position: absolute; left: -9px; right: -9px; top: 6px; width: calc(100% + 18px); margin: 0; height: 22px;
+    background: transparent; -webkit-appearance: none; appearance: none; cursor: pointer; }
+  .day-track input::-webkit-slider-runnable-track { background: transparent; height: 22px; }
+  .day-track input::-moz-range-track { background: transparent; }
+  .day-track input::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; margin-top: 2px; border-radius: 50%;
+    background: #fff; box-shadow: 0 0 0 5px rgba(124,196,255,.35), 0 2px 6px rgba(0,0,0,.5); }
+  .day-track input::-moz-range-thumb { width: 18px; height: 18px; border: 0; border-radius: 50%; background: #fff;
+    box-shadow: 0 0 0 5px rgba(124,196,255,.35), 0 2px 6px rgba(0,0,0,.5); }
+  .day-track input:focus-visible { outline: none; }
+  .day-track input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px var(--accent); }
+  .day-hours { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; font-size: 10px;
+    color: var(--muted); pointer-events: none; font-variant-numeric: tabular-nums; }
+  .day-clock { flex: none; width: 52px; text-align: right; font-size: 18px; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .day-cal { position: absolute; left: 8px; bottom: calc(100% + 8px); width: 260px; background: #10152a; border: 1px solid var(--line);
+    border-radius: 12px; padding: 10px; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+  .day-cal[hidden] { display: none; }
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .cal-grid span { font-size: 10px; color: var(--muted); text-align: center; padding: 2px 0; }
+  .cal-grid button { font: inherit; font-size: 12px; height: 28px; border: 0; border-radius: 6px; cursor: pointer; color: var(--text);
+    background: rgba(255,255,255,.04); font-variant-numeric: tabular-nums; }
+  .cal-grid button:disabled { color: rgba(141,148,173,.45); background: none; cursor: default; }
+  .cal-grid button.l1 { background: rgba(124,196,255,.22); }
+  .cal-grid button.l2 { background: rgba(124,196,255,.45); }
+  .cal-grid button.l3 { background: rgba(124,196,255,.75); color: #07112a; }
+  .cal-grid button.sel { outline: 2px solid #fff; outline-offset: -2px; }
+  .cal-grid button:hover:not(:disabled) { outline: 1px solid var(--accent); }
+  .day-dot { width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 3px solid var(--accent);
+    box-shadow: 0 0 0 6px rgba(124,196,255,.3), 0 2px 8px rgba(0,0,0,.5); }
+  body.day-mode .maplibregl-ctrl-bottom-right, body.day-mode .maplibregl-ctrl-bottom-left { margin-bottom: 150px; }
+
   @media (max-width: 520px) {
+    body.day-mode .panel { display: none; }
     .panel { top: auto; bottom: 0; left: 0; width: 100%; max-height: 60%; border-radius: 14px 14px 0 0; }
   }
   .maplibregl-popup-content { color: #1b1f2a; }
@@ -211,7 +268,7 @@
   </div>
 
   <div class="loaded">
-    <div class="seg" id="view"><button type="button" data-view="fog" class="active">Fog</button><button type="button" data-view="pins">📍 Pins</button></div>
+    <div class="seg" id="view"><button type="button" data-view="fog" class="active">Fog</button><button type="button" data-view="pins">📍 Pins</button><button type="button" data-view="day">📅 Day</button></div>
     <div class="stats">
       <div class="stat"><b id="stat-area">0</b><span>km² explored</span></div>
       <div class="stat"><b id="stat-places">0</b><span>places visited</span></div>
@@ -247,6 +304,35 @@
 </aside>
 
 <div class="dropzone">Drop to lift the fog</div>
+
+<div id="daybar" class="daybar" hidden>
+  <div class="day-head">
+    <button type="button" class="day-btn" id="day-prev" aria-label="Previous day" title="Previous day">‹</button>
+    <button type="button" class="day-date" id="day-date" aria-haspopup="true" aria-expanded="false" title="Pick a day"></button>
+    <button type="button" class="day-btn" id="day-next" aria-label="Next day" title="Next day">›</button>
+    <span class="spacer"></span>
+    <button type="button" class="day-btn" id="day-close" aria-label="Back to the fog" title="Back to the fog">✕</button>
+  </div>
+  <div class="day-chips" id="day-chips"></div>
+  <div class="day-play">
+    <button type="button" class="day-playbtn" id="day-play" aria-label="Play the day">▶</button>
+    <div class="day-track">
+      <div class="day-rail"></div>
+      <div id="day-marks"></div>
+      <input type="range" id="day-time" min="0" max="1439" step="1" aria-label="Time of day">
+      <div class="day-hours"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+    </div>
+    <b class="day-clock" id="day-clock">--:--</b>
+  </div>
+  <div class="day-cal" id="day-cal" hidden>
+    <div class="cal-head">
+      <button type="button" class="day-btn" id="cal-prev" aria-label="Previous month">‹</button>
+      <b id="cal-title"></b>
+      <button type="button" class="day-btn" id="cal-next" aria-label="Next month">›</button>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+  </div>
+</div>
 
 <div id="pick-banner" class="pick-banner" role="status" hidden>Click the map where the place is · <kbd>Esc</kbd> cancels</div>
 
@@ -350,6 +436,7 @@
 <script src="vendor/maplibre-gl/maplibre-gl.js"></script>
 <script src="parser.js"></script>
 <script src="fog.js"></script>
+<script src="day.js"></script>
 <script src="countries.js"></script>
 <script src="airports.js"></script>
 <script src="tcc.js"></script>

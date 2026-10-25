@@ -6,7 +6,7 @@ FROM node:22-alpine
 RUN apk add --no-cache su-exec
 WORKDIR /app
 # Only the app itself. Personal exports and saved settings are excluded by .dockerignore.
-COPY index.html app.js parser.js fog.js countries.js airports.js tcc.js cities.js towns.js \
+COPY index.html app.js parser.js fog.js day.js countries.js airports.js tcc.js cities.js towns.js \
      icon.svg manifest.webmanifest immich.mjs library.mjs server.mjs ./
 COPY vendor/maplibre-gl/ ./vendor/maplibre-gl/
 COPY docker-entrypoint.sh /usr/local/bin/

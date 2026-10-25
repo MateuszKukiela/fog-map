@@ -76,6 +76,7 @@
     if (!state.parts.length) {
       state.data = null;
       fog.setData(null);
+      if (inDayView()) setView('fog');
       document.body.classList.remove('has-data');
       return;
     }
@@ -166,6 +167,8 @@
     const cities = countCities(include);
     renderStats(stats(data, segments, include), countCountries(include), countTerritories(include), cities);
     setPins(cities, placePins(include));
+    day.days = null;
+    if (inDayView()) showDay(day.cur);
   }
 
   // ---------- countries (Natural Earth borders, countries.js) ----------
@@ -1133,11 +1136,298 @@
   }
 
   function setView(view) {
-    fog.canvas.style.display = view === 'pins' ? 'none' : '';
+    fog.canvas.style.display = view === 'fog' ? '' : 'none';
     map.setLayoutProperty('pins', 'visibility', view === 'pins' ? 'visible' : 'none');
+    for (const id of DAY_LAYERS) map.setLayoutProperty(id, 'visibility', view === 'day' ? 'visible' : 'none');
     for (const b of document.querySelectorAll('#view button')) b.classList.toggle('active', b.dataset.view === view);
+    const wasDay = document.body.classList.contains('day-mode');
+    document.body.classList.toggle('day-mode', view === 'day');
+    $('daybar').hidden = view !== 'day';
+    if (view === 'day' && !wasDay) {
+      // Give the map the room: collapse the panel while the day is open, restore it after.
+      day.collapsed = document.body.classList.contains('collapsed');
+      document.body.classList.add('collapsed');
+      showDay(day.cur, true);
+      if (inDayView()) day.dot.addTo(map); // after showDay placed it; it leaves the view when there are no days
+    } else if (view !== 'day' && wasDay) {
+      stopPlay();
+      closeCal();
+      day.dot.remove();
+      document.body.classList.toggle('collapsed', day.collapsed);
+    }
   }
   for (const b of document.querySelectorAll('#view button')) b.onclick = () => setView(b.dataset.view);
+
+  // ---------- day view: one day's route, retraced hour by hour ----------
+
+  const { byDay, track, positionAt } = window.FogDay;
+  // Route color by hour of day; the bar's rail in index.html uses the same stops.
+  const HOUR_COLOR = ['interpolate-hcl', ['linear'], ['get', 'h'], 0, '#3b4a9a', 6, '#7cc4ff', 12, '#ffd27c', 18, '#ff8a5c', 24, '#6a4fb3'];
+  const DAY_LAYERS = ['day-glow', 'day-line', 'day-stops'];
+  const PLAY_MS = 20000; // a day's movement plays in about this long
+  // days: local midnight -> point indices (built on first use per filter); cur: shown day; tr: its track.
+  const day = { days: null, keys: [], tracks: new Map(), cur: null, tr: null, time: 0, month: 0, playing: 0, dot: null, collapsed: false };
+
+  const fmtTime = (t) => new Date(t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const fmtDur = (ms) => {
+    const m = Math.round(ms / 60000);
+    return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`;
+  };
+  const monthOf = (t) => new Date(new Date(t).getFullYear(), new Date(t).getMonth(), 1).getTime();
+  const inDayView = () => document.body.classList.contains('day-mode');
+
+  function stopName(s) {
+    const town = nearestTown(s.lat, s.lng, 30000);
+    return town ? town[0] : 'Stop';
+  }
+
+  function addDayLayers() {
+    const empty = { type: 'FeatureCollection', features: [] };
+    map.addSource('day-route', { type: 'geojson', data: empty });
+    map.addSource('day-stops', { type: 'geojson', data: empty });
+    const line = { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' };
+    map.addLayer({
+      id: 'day-glow',
+      type: 'line',
+      source: 'day-route',
+      layout: line,
+      paint: { 'line-color': HOUR_COLOR, 'line-width': 14, 'line-blur': 10, 'line-opacity': 0.45 },
+    });
+    map.addLayer({ id: 'day-line', type: 'line', source: 'day-route', layout: line, paint: { 'line-color': HOUR_COLOR, 'line-width': 4 } });
+    map.addLayer({
+      id: 'day-stops',
+      type: 'circle',
+      source: 'day-stops',
+      layout: { visibility: 'none' },
+      paint: { 'circle-radius': 6, 'circle-color': '#fff', 'circle-stroke-width': 3, 'circle-stroke-color': '#0d1220' },
+    });
+    map.on('click', 'day-stops', (e) => {
+      const s = day.tr.stops[e.features[0].properties.i];
+      const box = document.createElement('div');
+      const title = document.createElement('strong');
+      title.textContent = stopName(s);
+      const when = document.createElement('div');
+      when.className = 'pin-date';
+      when.textContent = `${fmtTime(s.from)} – ${fmtTime(s.to)} · ${fmtDur(s.to - s.from)}`;
+      box.append(title, when);
+      new maplibregl.Popup({ offset: 12 }).setLngLat([s.lng, s.lat]).setDOMContent(box).addTo(map);
+      stopPlay();
+      setTime(s.from);
+    });
+    map.on('mouseenter', 'day-stops', () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', 'day-stops', () => {
+      map.getCanvas().style.cursor = '';
+    });
+    const dot = document.createElement('div');
+    dot.className = 'day-dot';
+    day.dot = new maplibregl.Marker({ element: dot });
+  }
+
+  function dayTrack(d) {
+    let tr = day.tracks.get(d);
+    if (!tr) {
+      tr = track(state.data, day.days.get(d));
+      day.tracks.set(d, tr);
+    }
+    return tr;
+  }
+
+  // Shows day d (local midnight), or the latest day when d has no data; fit zooms to the day.
+  function showDay(d, fit) {
+    if (!day.days) {
+      day.days = byDay(state.data, state.include);
+      day.keys = [...day.days.keys()].sort((a, b) => a - b);
+      day.tracks.clear();
+    }
+    if (!day.keys.length) return setView('fog');
+    if (!day.days.has(d)) d = day.keys[day.keys.length - 1];
+    stopPlay();
+    const keep = d === day.cur && day.tr; // same day redrawn after a data change: keep the time
+    day.cur = d;
+    const tr = dayTrack(d);
+    day.tr = tr;
+
+    const route = [];
+    for (let k = 0; k + 1 < tr.t.length; k++) {
+      if (!tr.link[k]) continue;
+      route.push({
+        type: 'Feature',
+        properties: { h: (tr.t[k] - d) / 3600000 },
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [tr.lng[k], tr.lat[k]],
+            [tr.lng[k + 1], tr.lat[k + 1]],
+          ],
+        },
+      });
+    }
+    map.getSource('day-route').setData({ type: 'FeatureCollection', features: route });
+    map.getSource('day-stops').setData({
+      type: 'FeatureCollection',
+      features: tr.stops.map((s, i) => ({ type: 'Feature', properties: { i }, geometry: { type: 'Point', coordinates: [s.lng, s.lat] } })),
+    });
+
+    $('day-date').textContent = new Date(d).toLocaleDateString(undefined, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+    const i = day.keys.indexOf(d);
+    $('day-prev').disabled = i <= 0;
+    $('day-next').disabled = i >= day.keys.length - 1;
+
+    const chips = $('day-chips');
+    chips.replaceChildren();
+    const chip = (value, label) => {
+      const span = document.createElement('span');
+      const b = document.createElement('b');
+      b.textContent = value;
+      span.append(b, label);
+      chips.append(span);
+    };
+    chip(tr.km < 10 ? tr.km.toFixed(1) : String(Math.round(tr.km)), ' km');
+    chip(String(tr.stops.length), tr.stops.length === 1 ? ' stop' : ' stops');
+    chip(`${fmtTime(tr.t[0])} – ${fmtTime(tr.t[tr.t.length - 1])}`, '');
+
+    $('day-marks').replaceChildren(
+      ...tr.stops.map((s) => {
+        const el = document.createElement('div');
+        el.className = 'day-stop';
+        el.style.left = (100 * (s.from - d)) / 864e5 + '%';
+        el.style.width = (100 * (s.to - s.from)) / 864e5 + '%';
+        return el;
+      }),
+    );
+
+    setTime(keep ? day.time : tr.t[0]);
+    if (fit) {
+      let s = 90,
+        n = -90,
+        w = 180,
+        e = -180;
+      for (let k = 0; k < tr.t.length; k++) {
+        s = Math.min(s, tr.lat[k]);
+        n = Math.max(n, tr.lat[k]);
+        w = Math.min(w, tr.lng[k]);
+        e = Math.max(e, tr.lng[k]);
+      }
+      const small = window.innerWidth <= 520;
+      map.fitBounds(
+        [
+          [w, s],
+          [e, n],
+        ],
+        { padding: { top: 60, bottom: 200, left: small ? 30 : 60, right: small ? 30 : 60 }, maxZoom: 15, duration: 800 },
+      );
+    }
+  }
+
+  function setTime(t) {
+    day.time = t;
+    const [lat, lng] = positionAt(day.tr, t);
+    day.dot.setLngLat([lng, lat]);
+    $('day-time').value = Math.round((t - day.cur) / 60000);
+    $('day-clock').textContent = fmtTime(t);
+  }
+
+  function play() {
+    const first = day.tr.t[0],
+      last = day.tr.t[day.tr.t.length - 1];
+    if (day.time >= last || day.time < first) day.time = first;
+    const speed = Math.max(last - first, 3600000) / PLAY_MS; // day time per real ms
+    let prev = performance.now();
+    $('day-play').textContent = '❚❚';
+    $('day-play').setAttribute('aria-label', 'Pause');
+    const step = (now) => {
+      const t = Math.min(last, day.time + (now - prev) * speed);
+      prev = now;
+      setTime(t);
+      // Keep the dot on screen while the day plays.
+      const ll = day.dot.getLngLat();
+      if (!map.isMoving() && !map.getBounds().contains(ll)) map.easeTo({ center: ll, duration: 600 });
+      if (t >= last) stopPlay();
+      else day.playing = requestAnimationFrame(step);
+    };
+    day.playing = requestAnimationFrame(step);
+  }
+
+  function stopPlay() {
+    cancelAnimationFrame(day.playing);
+    day.playing = 0;
+    $('day-play').textContent = '▶';
+    $('day-play').setAttribute('aria-label', 'Play the day');
+  }
+
+  function renderCal() {
+    const m = new Date(day.month);
+    $('cal-title').textContent = m.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    $('cal-prev').disabled = day.month <= monthOf(day.keys[0]);
+    $('cal-next').disabled = day.month >= monthOf(day.keys[day.keys.length - 1]);
+    const grid = $('cal-grid');
+    grid.replaceChildren();
+    for (let k = 0; k < 7; k++) {
+      const span = document.createElement('span');
+      span.textContent = new Date(2024, 0, 1 + k).toLocaleDateString(undefined, { weekday: 'narrow' }); // 1 Jan 2024 was a Monday
+      grid.append(span);
+    }
+    for (let k = (m.getDay() + 6) % 7; k > 0; k--) grid.append(document.createElement('i'));
+    const count = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+    for (let dd = 1; dd <= count; dd++) {
+      const d = new Date(m.getFullYear(), m.getMonth(), dd).getTime();
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = dd;
+      if (day.days.has(d)) {
+        const km = dayTrack(d).km;
+        b.className = km < 2 ? 'l1' : km < 15 ? 'l2' : 'l3'; // shaded by how far you moved
+        b.title = `${km.toFixed(1)} km`;
+        b.onclick = () => {
+          closeCal();
+          showDay(d, true);
+        };
+      } else b.disabled = true;
+      if (d === day.cur) b.classList.add('sel');
+      grid.append(b);
+    }
+  }
+
+  function closeCal() {
+    $('day-cal').hidden = true;
+    $('day-date').setAttribute('aria-expanded', 'false');
+  }
+
+  $('day-date').onclick = () => {
+    if (!$('day-cal').hidden) return closeCal();
+    day.month = monthOf(day.cur);
+    renderCal();
+    $('day-cal').hidden = false;
+    $('day-date').setAttribute('aria-expanded', 'true');
+  };
+  const shiftMonth = (by) => {
+    const m = new Date(day.month);
+    day.month = new Date(m.getFullYear(), m.getMonth() + by, 1).getTime();
+    renderCal();
+  };
+  $('cal-prev').onclick = () => shiftMonth(-1);
+  $('cal-next').onclick = () => shiftMonth(1);
+  document.addEventListener('pointerdown', (e) => {
+    if (!$('day-cal').hidden && !e.target.closest('#day-cal, #day-date')) closeCal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeCal();
+  });
+  $('day-prev').onclick = () => showDay(day.keys[day.keys.indexOf(day.cur) - 1], true);
+  $('day-next').onclick = () => showDay(day.keys[day.keys.indexOf(day.cur) + 1], true);
+  $('day-close').onclick = () => setView('fog');
+  $('day-play').onclick = () => (day.playing ? stopPlay() : play());
+  $('day-time').oninput = (e) => {
+    stopPlay();
+    setTime(day.cur + Number(e.target.value) * 60000);
+  };
 
   // Self-hosted (server.mjs): photo locations straight from Immich on every visit.
   // Opened as a local file or on a plain static host, the endpoint isn't there and this does nothing.
@@ -1548,6 +1838,7 @@
   const mapReady = new Promise((resolve) =>
     map.on('load', () => {
       addPinsLayer();
+      addDayLayers();
       if (location.hash === '#pins') setView('pins'); // direct link to the pins view
       resolve();
     }),

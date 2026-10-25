@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **📅 Day** view: pick a day from a calendar or step through days, see that day's route colored by time
+  of day and where you stopped, then drag through the hours or press play to retrace it.
+
 ## [1.5.1] - 2026-10-25
 
 ### Added

@@ -261,18 +261,18 @@
     idx.sort((a, b) => data.t[a] - data.t[b]);
 
     const pairs = [];
-    for (let k = 1; k < idx.length; k++) {
-      const a = idx[k - 1],
-        b = idx[k];
-      const dt = data.t[b] - data.t[a];
-      if (dt > MAX_HOP_MS) continue;
-      const d = distanceM(data.lat[a], data.lng[a], data.lat[b], data.lng[b]);
-      if (d < 1 || d > MAX_HOP_M) continue;
-      if (dt > 0 ? d / (dt / 1000) > MAX_SPEED_MPS : d > 1000) continue;
-      pairs.push(a, b);
-    }
+    for (let k = 1; k < idx.length; k++) if (hopOk(data, idx[k - 1], idx[k])) pairs.push(idx[k - 1], idx[k]);
     return Uint32Array.from(pairs);
   }
 
-  return { KIND, parse, merge, buildSegments, parseCoord, parseTime, distanceM };
+  // Whether time-ordered points a, b can be joined by a line: close in time and space, plausible speed.
+  function hopOk(data, a, b) {
+    const dt = data.t[b] - data.t[a];
+    if (dt > MAX_HOP_MS) return false;
+    const d = distanceM(data.lat[a], data.lng[a], data.lat[b], data.lng[b]);
+    if (d < 1 || d > MAX_HOP_M) return false;
+    return dt > 0 ? d / (dt / 1000) <= MAX_SPEED_MPS : d <= 1000;
+  }
+
+  return { KIND, parse, merge, buildSegments, hopOk, parseCoord, parseTime, distanceM };
 });
