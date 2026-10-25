@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-25
+
 ### Added
 
 - **📅 Day** view: pick a day from a calendar or step through days, see that day's route colored by time
@@ -127,6 +129,7 @@ First public release.
 - Noise cleanup: in-flight points, geolocation teleports, one-off countries, airport layovers.
 - Docker image for linux/amd64 and linux/arm64 with health check, optional basic auth and SBOM/provenance attestations.
 
+[1.6.0]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.6.0
 [1.5.1]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.5.1
 [1.5.0]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.5.0
 [1.4.2]: https://github.com/MateuszKukiela/fog-map/releases/tag/v1.4.2

@@ -1,6 +1,6 @@
 {
   "name": "fog-map",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Self-hosted map of everywhere you've been, from Google Timeline and Immich photos.",
   "license": "MIT",
   "private": true,
