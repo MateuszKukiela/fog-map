@@ -8,6 +8,7 @@
 
   const STOP_RADIUS_M = 100;
   const STOP_MIN_MS = 10 * 60000;
+  const GAP_MIN_M = 100; // shorter unlinked hops are standing still, not a gap worth drawing
 
   // Local midnight of the day containing t (DST-safe).
   function dayStart(t) {
@@ -29,22 +30,26 @@
   }
 
   // One day's track: time-sorted points, link[k] = 1 when points k and k+1 are joined by a line,
-  // distance in km and stops (>= 10 min within ~100 m).
+  // gap[k] = 1 when they aren't but are far apart (no data in between), distance in km and
+  // stops (>= 10 min within ~100 m).
   function track(data, idx) {
     const n = idx.length;
     const t = new Float64Array(n),
       lat = new Float64Array(n),
       lng = new Float64Array(n),
-      link = new Uint8Array(n);
+      link = new Uint8Array(n),
+      gap = new Uint8Array(n);
     let m = 0;
     for (let k = 0; k < n; k++) {
       t[k] = data.t[idx[k]];
       lat[k] = data.lat[idx[k]];
       lng[k] = data.lng[idx[k]];
-      if (k + 1 < n && hopOk(data, idx[k], idx[k + 1])) {
+      if (k + 1 === n) break;
+      const d = distanceM(lat[k], lng[k], data.lat[idx[k + 1]], data.lng[idx[k + 1]]);
+      if (hopOk(data, idx[k], idx[k + 1])) {
         link[k] = 1;
-        m += distanceM(lat[k], lng[k], data.lat[idx[k + 1]], data.lng[idx[k + 1]]);
-      }
+        m += d;
+      } else if (d > GAP_MIN_M) gap[k] = 1;
     }
 
     const stops = [];
@@ -67,7 +72,44 @@
       i = j;
     }
 
-    return { t, lat, lng, link, km: m / 1000, stops };
+    return { t, lat, lng, link, gap, km: m / 1000, stops };
+  }
+
+  // Display copy of a track: each linked run rounded off by Chaikin corner cutting (ends kept),
+  // so GPS jitter doesn't zigzag. Times are cut the same way, so positionAt works on it.
+  function smooth(tr, rounds = 2) {
+    const t = [],
+      lat = [],
+      lng = [],
+      link = [];
+    const n = tr.t.length;
+    for (let i = 0; i < n; ) {
+      let j = i;
+      while (j + 1 < n && tr.link[j]) j++;
+      let run = [];
+      for (let k = i; k <= j; k++) run.push([tr.t[k], tr.lat[k], tr.lng[k]]);
+      for (let r = 0; r < rounds && run.length > 2; r++) {
+        const out = [run[0]];
+        for (let k = 0; k + 1 < run.length; k++) {
+          const a = run[k],
+            b = run[k + 1];
+          const mix = (f) => a.map((v, c) => v + (b[c] - v) * f);
+          if (k > 0) out.push(mix(0.25));
+          if (k + 2 < run.length) out.push(mix(0.75));
+        }
+        out.push(run[run.length - 1]);
+        run = out;
+      }
+      for (const p of run) {
+        t.push(p[0]);
+        lat.push(p[1]);
+        lng.push(p[2]);
+        link.push(1);
+      }
+      link[link.length - 1] = 0;
+      i = j + 1;
+    }
+    return { t: Float64Array.from(t), lat: Float64Array.from(lat), lng: Float64Array.from(lng), link: Uint8Array.from(link) };
   }
 
   // [lat, lng] at time `at`: interpolated along a line, otherwise held at the last known point.
@@ -87,5 +129,5 @@
     return [lat[lo] + (lat[hi] - lat[lo]) * f, lng[lo] + (lng[hi] - lng[lo]) * f];
   }
 
-  return { dayStart, byDay, track, positionAt };
+  return { dayStart, byDay, track, smooth, positionAt };
 });

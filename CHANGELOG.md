@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Day view: the route is smoothed so GPS jitter no longer zigzags, and stretches with no data in between
+  (a phone that stopped reporting) show as a dashed line instead of nothing.
+
 ## [1.6.0] - 2026-10-25
 
 ### Added

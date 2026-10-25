@@ -1160,13 +1160,26 @@
 
   // ---------- day view: one day's route, retraced hour by hour ----------
 
-  const { byDay, track, positionAt } = window.FogDay;
+  const { byDay, track, smooth, positionAt } = window.FogDay;
   // Route color by hour of day; the bar's rail in index.html uses the same stops.
   const HOUR_COLOR = ['interpolate-hcl', ['linear'], ['get', 'h'], 0, '#3b4a9a', 6, '#7cc4ff', 12, '#ffd27c', 18, '#ff8a5c', 24, '#6a4fb3'];
-  const DAY_LAYERS = ['day-glow', 'day-line', 'day-stops'];
+  const DAY_LAYERS = ['day-gaps', 'day-glow', 'day-line', 'day-stops'];
   const PLAY_MS = 20000; // a day's movement plays in about this long
-  // days: local midnight -> point indices (built on first use per filter); cur: shown day; tr: its track.
-  const day = { days: null, keys: [], tracks: new Map(), cur: null, tr: null, time: 0, month: 0, playing: 0, dot: null, collapsed: false };
+  // days: local midnight -> point indices (built on first use per filter); cur: shown day; tr: its track;
+  // line: tr smoothed, for drawing and the moving dot.
+  const day = {
+    days: null,
+    keys: [],
+    tracks: new Map(),
+    cur: null,
+    tr: null,
+    line: null,
+    time: 0,
+    month: 0,
+    playing: 0,
+    dot: null,
+    collapsed: false,
+  };
 
   const fmtTime = (t) => new Date(t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   const fmtDur = (ms) => {
@@ -1186,14 +1199,32 @@
     map.addSource('day-route', { type: 'geojson', data: empty });
     map.addSource('day-stops', { type: 'geojson', data: empty });
     const line = { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' };
+    const solid = ['!', ['get', 'gap']];
+    // Stretches with no data in between: a faint dashed line, not a made-up route.
+    map.addLayer({
+      id: 'day-gaps',
+      type: 'line',
+      source: 'day-route',
+      filter: ['get', 'gap'],
+      layout: { visibility: 'none' },
+      paint: { 'line-color': HOUR_COLOR, 'line-width': 3.5, 'line-opacity': 0.9, 'line-dasharray': [2, 1.5] },
+    });
     map.addLayer({
       id: 'day-glow',
       type: 'line',
       source: 'day-route',
+      filter: solid,
       layout: line,
       paint: { 'line-color': HOUR_COLOR, 'line-width': 14, 'line-blur': 10, 'line-opacity': 0.45 },
     });
-    map.addLayer({ id: 'day-line', type: 'line', source: 'day-route', layout: line, paint: { 'line-color': HOUR_COLOR, 'line-width': 4 } });
+    map.addLayer({
+      id: 'day-line',
+      type: 'line',
+      source: 'day-route',
+      filter: solid,
+      layout: line,
+      paint: { 'line-color': HOUR_COLOR, 'line-width': 4 },
+    });
     map.addLayer({
       id: 'day-stops',
       type: 'circle',
@@ -1249,21 +1280,22 @@
     const tr = dayTrack(d);
     day.tr = tr;
 
+    day.line = smooth(tr);
     const route = [];
-    for (let k = 0; k + 1 < tr.t.length; k++) {
-      if (!tr.link[k]) continue;
+    const seg = (p, k, gap) =>
       route.push({
         type: 'Feature',
-        properties: { h: (tr.t[k] - d) / 3600000 },
+        properties: { h: (p.t[k] - d) / 3600000, gap },
         geometry: {
           type: 'LineString',
           coordinates: [
-            [tr.lng[k], tr.lat[k]],
-            [tr.lng[k + 1], tr.lat[k + 1]],
+            [p.lng[k], p.lat[k]],
+            [p.lng[k + 1], p.lat[k + 1]],
           ],
         },
       });
-    }
+    for (let k = 0; k + 1 < day.line.t.length; k++) if (day.line.link[k]) seg(day.line, k, false);
+    for (let k = 0; k + 1 < tr.t.length; k++) if (tr.gap[k]) seg(tr, k, true);
     map.getSource('day-route').setData({ type: 'FeatureCollection', features: route });
     map.getSource('day-stops').setData({
       type: 'FeatureCollection',
@@ -1328,7 +1360,7 @@
 
   function setTime(t) {
     day.time = t;
-    const [lat, lng] = positionAt(day.tr, t);
+    const [lat, lng] = positionAt(day.line, t);
     day.dot.setLngLat([lng, lat]);
     $('day-time').value = Math.round((t - day.cur) / 60000);
     $('day-clock').textContent = fmtTime(t);
